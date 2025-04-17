@@ -1,0 +1,57 @@
+name: welcome_agent
+description: >
+  PyTune AI Welcome Agent — guides new users through piano discovery, profile completion, and usage of diagnostic or tuning tools.
+
+triggers:
+  - event: user_login
+    condition: user_profile.logged_in and not user_profile.show_onboarding_dismissed
+
+context:
+  fetch:
+    - user_profile
+    - user_pianos
+    - last_diagnosis
+    - user_language
+    - user_history
+  variables:
+    show_onboarding: >
+      not user_profile.form_completed
+      or user_pianos.count == 0
+      or not last_diagnosis.exists
+
+conversation:
+  - if: not user_profile.form_completed
+    say: >
+      Hi {user_profile.firstname}, welcome to PyTune!
+      To start, could you fill in a few basic details? It's just a short form.
+    actions:
+      - suggest_action: "Open profile form"
+        route_to: "/user/profile"
+
+  - elif: user_pianos.count == 0
+    say: >
+      I'd love to know more about your piano. Could you describe it to me?
+      You can also upload a photo or serial number for precise identification.
+    actions:
+      - suggest_action: "Describe my piano"
+        route_to: "/pianos"
+
+  - elif: not last_diagnosis.exists
+    say: >
+      We can run a quick diagnostic to understand your piano’s current state.
+      Want to try it now?
+    actions:
+      - suggest_action: "Start diagnosis"
+        route_to: "/diagnosis"
+
+  - else: true
+    say: >
+      Everything looks good, {user_profile.firstname}.
+      You can explore your dashboard now or ask me anything.
+
+      For example: "How to tune my piano?" or "Tell me more about my piano".
+
+metadata:
+  version: "1.0"
+  lang: en
+  allow_interruptions: true

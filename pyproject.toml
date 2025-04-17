@@ -1,0 +1,40 @@
+[tool.poetry]
+name = "pytune_ai_router"
+version = "1.0.0"
+description = "routing Ollama, OpenAI, Gemini, etc .."
+authors = ["Gabriel de Fombelle <gabriel.de.fombelle@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12.3"
+asyncpg = "*"  # Pour la gestion des connexions PostgreSQL
+fastapi = "*"  # Framework FastAPI pour l'API admin
+pydantic = "*"  # Validation des données
+tortoise-orm = "*"
+python-dotenv = "*"  # Chargement des variables d'environnement
+redis = "*"  # Intégration Redis pour certaines fonctionnalités
+simple_logger = { git = "https://github.com/gdefombelle/simple_logger.git" }
+pytune_helpers = { git = "https://github.com/gdefombelle/pytune_helpers.git" }
+pytune_data = { git = "https://github.com/gdefombelle/pytune_data.git" }
+pytune_auth_common = { git = "https://github.com/gdefombelle/pytune_auth_common.git" }
+
+openai = "*"               # Pour l’appel à l’API OpenAI
+httpx = "*"                # Pour les appels réseau (ex: Ollama)
+pyyaml = "*"               # Pour parser les fichiers YAML (politique agent)
+aiofiles = "*"             # Pour l'upload temporaire de fichiers
+python-multipart = "*"     # Pour le support de fichiers dans FastAPI
+ollama = "*"               # Client Python officiel si dispo/stable (optionnel)
+
+
+
+uvicorn = {extras = ["standard"], version = "^0.34.0"}
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.0"  # Tests unitaires
+pytest-asyncio = "*"  # Tests asynchrones
+
+[build-system]
+requires = ["poetry>=1.1.0"]
+build-backend = "poetry.core.masonry.api"

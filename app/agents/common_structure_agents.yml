@@ -1,0 +1,10 @@
+name: string
+description: string
+triggers: list
+context:
+  fetch: list
+  variables: dict
+conversation: list of steps (if, say, actions)
+metadata:
+  lang: en
+  allow_interruptions: true

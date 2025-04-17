@@ -1,0 +1,1 @@
+# 👈 ← Envoie le prompt à l’IA (Ollama, OpenAI, etc.)
