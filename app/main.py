@@ -1,0 +1,120 @@
+import asyncio
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+import toml
+from pathlib import Path
+import os
+
+from .routers.agents import welcome_agent_router
+from simple_logger.logger import get_logger, SimpleLogger
+from pytune_configuration.sync_config_singleton import config, SimpleConfig
+
+# 🚀 Importer les routers
+from .routers import chat_router
+
+# 📜 Initialisation
+if config is None:
+    config = SimpleConfig()
+
+# 📦 Lecture de pyproject.toml
+pyproject_path = Path(__file__).resolve().parent.parent / "pyproject.toml"
+pyproject_data = toml.load(pyproject_path)
+
+project_metadata = pyproject_data["tool"]["poetry"]
+PROJECT_TITLE = project_metadata.get("name", "pytune_ai_router")
+PROJECT_VERSION = project_metadata.get("version", "0.1.0")
+PROJECT_DESCRIPTION = project_metadata.get("description", "PyTune AI Router Microservice")
+
+# 📄 Logger
+print("ENV LOG_DIR:", os.getenv("LOG_DIR"))
+logger = get_logger("pytune_ai_router")
+logger.info("✅ Logger actif", log_dir=os.getenv("LOG_DIR"))
+logger.info("********** STARTING PYTUNE AI ROUTER ********")
+
+# 🛡️ Rate Limiting Middleware
+from pytune_auth_common.services.rate_middleware import RateLimitMiddleware, RateLimitConfig
+
+try:
+    rate_limit_config = RateLimitConfig(
+        rate_limit=int(config.RATE_MIDDLEWARE_RATE_LIMIT),
+        time_window=int(config.RATE_MIDDLEWARE_TIME_WINDOW),
+        block_time=int(config.RATE_MIDDLEWARE_LOCK_TIME),
+    )
+    logger.info("✅ Rate middleware configuration ready")
+except Exception as e:
+    logger.critical("❌ Failed to set RateLimit", error=e)
+    raise RuntimeError("Failed to set RateLimit") from e
+
+# 🌟 Lifespan
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        await logger.asuccess("PYTUNE AI ROUTER READY!")
+        yield
+    except asyncio.CancelledError:
+        await logger.acritical("❌ Lifespan cancelled")
+        raise
+    finally:
+        await logger.asuccess("✅ Lifespan finished without errors")
+
+# 🚀 FastAPI app
+app = FastAPI(
+    title=PROJECT_TITLE,
+    version=PROJECT_VERSION,
+    description=PROJECT_DESCRIPTION,
+    lifespan=lifespan,
+)
+
+# 🔗 Middleware CORS
+allowed_origins = config.ALLOWED_CORS_ORIGINS
+logger.info(f"Allowed CORS origins: {allowed_origins}")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["Authorization", "Content-Type"],
+    expose_headers=["Authorization"],
+)
+
+# 🔗 Middleware Rate Limit
+if config.USE_RATE_MIDDLEWARE:
+    logger.info("Applying RATE_MIDDLEWARE")
+    try:
+        app.add_middleware(
+            RateLimitMiddleware,
+            config=rate_limit_config,
+        )
+    except Exception as e:
+        logger.critical("Erreur lors de l'application des middlewares", error=e)
+        raise RuntimeError("Failed to load middlewares") from e
+else:
+    logger.info("NO RATE_MIDDLEWARE applied")
+
+# 🔗 Inclure les routers
+app.include_router(chat_router.router)
+app.include_router(welcome_agent_router.router)
+
+# 📄 Gestion des erreurs FastAPI
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    await logger.acritical("Validation error", extra={"errors": exc.errors(), "body": exc.body})
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors(), "body": exc.body},
+    )
+
+# 📂 Fichiers statiques (optionnel si besoin)
+static_dir = Path(__file__).parent / "static"
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+# ❤️ Healthcheck route
+@app.get("/")
+async def health_check():
+    return {"status": "ok", "service": PROJECT_TITLE, "version": PROJECT_VERSION}

@@ -22,11 +22,11 @@ context:
 conversation:
   - if: not user_profile.form_completed
     say: >
-      Hi {user_profile.firstname}, welcome to PyTune!
+      Hi ${firstname}, welcome to PyTune!
       To start, could you fill in a few basic details? It's just a short form.
     actions:
       - suggest_action: "Open profile form"
-        route_to: "/user/profile"
+        route_to: "/profile"
 
   - elif: user_pianos.count == 0
     say: >
@@ -46,11 +46,11 @@ conversation:
 
   - else: true
     say: >
-      Everything looks good, {user_profile.firstname}.
+      Everything looks good, ${firstname}.
       You can explore your dashboard now or ask me anything.
 
       For example: "How to tune my piano?" or "Tell me more about my piano".
-
+    actions: []
 metadata:
   version: "1.0"
   lang: en

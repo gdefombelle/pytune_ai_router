@@ -1,0 +1,21 @@
+# Docker doit ignorer tout ça pour accélérer les builds :
+
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+.venv/
+.poetry/
+.env
+.env.*
+
+.git
+.gitignore
+Dockerfile
+
+tests/
+notebooks/
+docs/
+*.log
+*.sqlite

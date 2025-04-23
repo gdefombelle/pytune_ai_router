@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pytune_ai_router"
-version = "1.0.0"
+version = "1.0.1"
 description = "routing Ollama, OpenAI, Gemini, etc .."
 authors = ["Gabriel de Fombelle <gabriel.de.fombelle@gmail.com>"]
 license = "MIT"
@@ -14,10 +14,19 @@ pydantic = "*"  # Validation des données
 tortoise-orm = "*"
 python-dotenv = "*"  # Chargement des variables d'environnement
 redis = "*"  # Intégration Redis pour certaines fonctionnalités
+
+# --- PROD mode (git) ---
+# simple_logger = { git = "https://github.com/gdefombelle/simple_logger.git" }
+# pytune_helpers = { git = "https://github.com/gdefombelle/pytune_helpers.git" }
+# pytune_data = { git = "https://github.com/gdefombelle/pytune_data.git" }
+# pytune_auth_common = { git = "https://github.com/gdefombelle/pytune_auth_common.git" }
+
+# --- DEV mode (local) ---
+pytune_auth_common = { path = "../../packages/pytune_auth_common" }
 simple_logger = { git = "https://github.com/gdefombelle/simple_logger.git" }
 pytune_helpers = { git = "https://github.com/gdefombelle/pytune_helpers.git" }
-pytune_data = { git = "https://github.com/gdefombelle/pytune_data.git" }
-pytune_auth_common = { git = "https://github.com/gdefombelle/pytune_auth_common.git" }
+pytune_configuration = {git = "https://github.com/gdefombelle/pytune_configuration"}
+pytune_data = { path = "../../packages/pytune_data.git" }
 
 openai = "*"               # Pour l’appel à l’API OpenAI
 httpx = "*"                # Pour les appels réseau (ex: Ollama)

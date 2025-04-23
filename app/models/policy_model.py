@@ -1,5 +1,5 @@
-from typing import List, Optional, Literal, Union
-from pydantic import BaseModel, Field
+from typing import Any, Dict, List, Optional, Literal, Union
+from pydantic import BaseModel, Field, field_validator, validator
 
 
 class Trigger(BaseModel):
@@ -19,23 +19,34 @@ class ConversationStep(BaseModel):
     say: Optional[str]
     actions: Optional[List[Action]]
 
+    @field_validator('actions', mode="before")
+    @classmethod
+    def validate_actions(cls, v):
+        if v is None:
+            return []
+        if isinstance(v, dict):
+            return [v]  # 🔥 Correction : si dict => mettre dans une liste
+        return v
+
     def validate_structure(self):
         if not (self.if_ or self.elif_ or self.else_):
             raise ValueError("Each conversation step must have 'if', 'elif' or 'else'")
         if not self.say:
             raise ValueError("Each step must include 'say'")
-
-
 class Metadata(BaseModel):
     version: str
     lang: str
     allow_interruptions: bool = True
 
-
 class Policy(BaseModel):
     name: str
     description: str
     triggers: List[Trigger]
-    context: dict
+    context: Optional[Dict[str, Any]] = None   # 🔥 ici
     conversation: List[ConversationStep]
     metadata: Metadata
+
+class AgentResponse(BaseModel):
+    message: str
+    actions: Optional[List[dict]] = []
+    meta: Optional[dict] = {}
