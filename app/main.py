@@ -9,7 +9,8 @@ import toml
 from pathlib import Path
 import os
 
-from .routers.agents import welcome_agent_router
+from .routers.chat_router import router as chat_router
+from .routers.agent_launcher_router import router as agent_launcher_router
 from simple_logger.logger import get_logger, SimpleLogger
 from pytune_configuration.sync_config_singleton import config, SimpleConfig
 
@@ -98,7 +99,8 @@ else:
 
 # 🔗 Inclure les routers
 app.include_router(chat_router.router)
-app.include_router(welcome_agent_router.router)
+# app.include_router(welcome_agent_router.router)
+app.include_router(agent_launcher_router)
 
 # 📄 Gestion des erreurs FastAPI
 @app.exception_handler(RequestValidationError)
