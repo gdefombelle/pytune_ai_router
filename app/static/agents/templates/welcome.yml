@@ -12,7 +12,6 @@ context:
     - user_pianos
     - last_diagnosis
     - user_language
-    - user_history
   variables:
     show_onboarding: >
       not user_profile.form_completed
@@ -20,7 +19,7 @@ context:
       or not last_diagnosis.exists
 
 conversation:
-  - if: not user_profile.form_completed
+  - if: "not user_profile.form_completed"
     say: >
       Hi ${firstname}, welcome to PyTune!
       To start, could you fill in a few basic details? It's just a short form.
@@ -28,7 +27,7 @@ conversation:
       - suggest_action: "Open profile form"
         route_to: "/profile"
 
-  - elif: user_pianos.count == 0
+  - elif: "user_pianos.count == 0"
     say: >
       I'd love to know more about your piano. Could you describe it to me?
       You can also upload a photo or serial number for precise identification.
@@ -36,7 +35,7 @@ conversation:
       - suggest_action: "Describe my piano"
         route_to: "/pianos"
 
-  - elif: not last_diagnosis.exists
+  - elif: "not last_diagnosis.exists"
     say: >
       We can run a quick diagnostic to understand your piano’s current state.
       Want to try it now?
@@ -46,11 +45,10 @@ conversation:
 
   - else: true
     say: >
-      Everything looks good, ${firstname}.
-      You can explore your dashboard now or ask me anything.
-
-      For example: "How to tune my piano?" or "Tell me more about my piano".
+      Everything looks good, ${firstname}!
+      You can explore your dashboard or ask me anything.
     actions: []
+
 metadata:
   version: "1.0"
   lang: en

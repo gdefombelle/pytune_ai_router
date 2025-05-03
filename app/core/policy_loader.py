@@ -1,6 +1,7 @@
 # app/core/policy_loader.py
 
 import os
+from pathlib import Path
 import yaml
 from app.core.policy_engine import evaluate_policy
 from app.models.policy_model import AgentResponse
@@ -10,19 +11,23 @@ from string import Template
 # Définir la racine du projet
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # <- un cran au-dessus de /core
 
-def load_yaml(path: str) -> dict:
-    """
-    Charge un fichier YAML et retourne son contenu en dictionnaire.
-    """
-    with open(path, "r", encoding="utf-8") as file:
+
+
+def load_yaml(path: str | Path) -> dict:
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"Policy file not found at: {path}")
+    with path.open("r", encoding="utf-8") as file:
         return yaml.safe_load(file)
+
 
 async def load_policy_and_resolve(agent_name: str, user_context: UserContext) -> AgentResponse:
     """
     Load a policy YAML file and resolve the conversation flow based on the user context.
     """
     # 🔥 1. Construire le chemin correct vers static/agents/
-    policy_path = os.path.join(BASE_DIR, "static", "agents", f"{agent_name}.yml")
+    policy_path = os.path.join(BASE_DIR, "static", "agents", "templates", f"{agent_name}.yml")
+
     policy_path = os.path.abspath(policy_path)
 
     # 🔥 2. Charger la policy YAML

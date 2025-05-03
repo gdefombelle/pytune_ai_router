@@ -1,0 +1,37 @@
+name: tuning_agent
+description: >
+  Agent to help users access PyTuner or prepare their piano for tuning.
+
+triggers:
+  - event: user_login
+    condition: user_profile.logged_in
+
+context:
+  fetch:
+    - user_profile
+    - user_pianos
+    - tuning_session
+    - user_language
+  variables: {}
+
+conversation:
+  - if: "can_start_tuning"
+    say: >
+      Let's get started with PyTuner.  
+      Make sure your environment is quiet and your device is ready.
+    actions:
+      - suggest_action: "Open PyTuner"
+        route_to: "/tuner"
+
+  - else: true
+    say: >
+      To tune your piano, we need some more info first.  
+      Please describe your instrument so PyTune can calibrate accordingly.
+    actions:
+      - suggest_action: "Describe my piano"
+        route_to: "/pianos"
+
+metadata:
+  version: "1.0"
+  lang: en
+  allow_interruptions: true

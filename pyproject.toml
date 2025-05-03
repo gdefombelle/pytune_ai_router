@@ -5,6 +5,7 @@ description = "routing Ollama, OpenAI, Gemini, etc .."
 authors = ["Gabriel de Fombelle <gabriel.de.fombelle@gmail.com>"]
 license = "MIT"
 readme = "README.md"
+package-mode = false 
 
 [tool.poetry.dependencies]
 python = "^3.12.3"
@@ -23,10 +24,10 @@ redis = "*"  # Intégration Redis pour certaines fonctionnalités
 
 # --- DEV mode (local) ---
 pytune_auth_common = { path = "../../packages/pytune_auth_common" }
-simple_logger = { git = "https://github.com/gdefombelle/simple_logger.git" }
-pytune_helpers = { git = "https://github.com/gdefombelle/pytune_helpers.git" }
-pytune_configuration = {git = "https://github.com/gdefombelle/pytune_configuration"}
-pytune_data = { path = "../../packages/pytune_data.git" }
+simple_logger = { path = "../../packages/simple_logger" }
+pytune_helpers = { path = "../../packages//pytune_helpers" }
+pytune_configuration = {path = "../../packages/pytune_configuration"}
+pytune_data = { path = "../../packages/pytune_data" }
 
 openai = "*"               # Pour l’appel à l’API OpenAI
 httpx = "*"                # Pour les appels réseau (ex: Ollama)

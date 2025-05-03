@@ -1,0 +1,43 @@
+name: example_agent
+description: >
+  This is a template for PyTune AI agents.  
+  Each agent has triggers, context, conversation steps, and metadata.
+
+triggers:
+  - event: user_login
+    condition: user_profile.logged_in
+
+context:
+  fetch:
+    - user_profile
+    - user_pianos
+    - user_language
+  variables:
+    needs_onboarding: >
+      not user_profile.form_completed or user_pianos.count == 0
+
+conversation:
+  - if: "not user_profile.form_completed"
+    say: >
+      Hello ${firstname}, please take a moment to complete your profile.
+    actions:
+      - suggest_action: "Complete profile"
+        route_to: "/profile"
+
+  - elif: "user_pianos.count == 0"
+    say: >
+      I'd love to know more about your piano.  
+      Could you describe it or upload a picture?
+    actions:
+      - suggest_action: "Describe my piano"
+        route_to: "/pianos"
+
+  - else: true
+    say: >
+      All set! You can explore your dashboard or ask for help anytime.
+    actions: []
+
+metadata:
+  version: "1.0"
+  lang: en
+  allow_interruptions: true

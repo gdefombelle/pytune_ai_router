@@ -1,0 +1,35 @@
+name: diagnosis_agent
+description: >
+  Agent to guide users through their first diagnosis.
+
+triggers:
+  - event: user_login
+    condition: not last_diagnosis.exists
+
+context:
+  fetch:
+    - user_profile
+    - last_diagnosis
+    - user_language
+  variables: {}
+
+conversation:
+  - if: "not last_diagnosis.exists"
+    say: >
+      Ready to understand your piano's state?  
+      PyTune can analyze your piano instantly. Would you like to try the diagnostic now?
+    actions:
+      - suggest_action: "Start diagnosis"
+        route_to: "/diagnosis"
+
+  - else: true
+    say: >
+      You’ve already performed a diagnosis. You can consult your tuning reports or run another analysis.
+    actions:
+      - suggest_action: "View my reports"
+        route_to: "/tuning-history"
+
+metadata:
+  version: "1.0"
+  lang: en
+  allow_interruptions: true

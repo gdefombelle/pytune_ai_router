@@ -1,0 +1,24 @@
+name: chat_agent
+description: >
+  General-purpose chat agent. Responds to questions and guides the user across PyTune.
+
+triggers:
+  - event: user_message
+    condition: True
+
+context:
+  fetch:
+    - user_profile
+    - user_language
+  variables: {}
+
+conversation:
+  - if: "True"
+    say: >
+      Hello! I'm your PyTune assistant. Ask me anything or let me guide you through the platform.
+    actions: []
+
+metadata:
+  version: "1.0"
+  lang: en
+  allow_interruptions: true

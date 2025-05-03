@@ -1,22 +1,27 @@
-import httpx
+from typing import Optional
 from pytune_data.models import UserContext
+from pytune_data.user_data_service import get_user_context
 from simple_logger.logger import get_logger
 
 logger = get_logger("ai_router")
 
-USER_SERVICE_URL = "http://localhost:8002"  # 🔥 interne Docker
 
-async def resolve_user_context(user_id: int) -> UserContext:
-    url = f"{USER_SERVICE_URL}/user/profile/context/internal/{user_id}"
+async def resolve_user_context(user_id: int, extra: Optional[dict] = None) -> dict:
+    """
+    Résout dynamiquement le contexte utilisateur pour une policy AI,
+    en combinant les infos de base (UserContext) et des ajouts dynamiques.
+    """
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url)
+        # 1. Charger le contexte utilisateur depuis la base (via service local)
+        user_context_obj: UserContext = await get_user_context(user_id)
+        base_context = user_context_obj.model_dump()
 
-        if response.status_code == 200:
-            return UserContext(**response.json())
-        else:
-            logger.aerror(f"Failed to fetch user context: {response.status_code} {response.text}")
-            raise Exception(f"Failed to fetch user context: {response.status_code}")
+        # 2. Fusionner avec les données additionnelles dynamiques
+        if extra:
+            base_context.update(extra)
+
+        return base_context
+
     except Exception as e:
-        logger.acritical(f"Exception while resolving user context: {e}")
+        await logger.acritical(f"❌ Erreur dans resolve_user_context: {e}")
         raise

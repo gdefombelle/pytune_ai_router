@@ -1,0 +1,53 @@
+name: profile_agent
+description: >
+  PyTune Profile Assistant — helps users complete their profile step by step.
+
+triggers:
+  - event: user_login
+    condition: not user_profile.form_completed
+
+context:
+  fetch:
+    - user_profile
+    - user_language
+  variables:
+    profile_ok: >
+      user_profile.firstname and
+      user_profile.email and
+      user_profile.city and
+      user_profile.country and
+      user_profile.terms_accepted and
+      user_profile.privacy_accepted
+
+conversation:
+  - if: "not user_profile.firstname"
+    say: >
+      Let's start with your first name. What should I call you?
+    actions: []
+
+  - if: "not user_profile.city or not user_profile.country"
+    say: >
+      Where are you located? Please enter your city and country so I can assist better.
+    actions: []
+
+  - if: "not user_profile.terms_accepted or not user_profile.privacy_accepted"
+    say: >
+      Before going further, could you please accept the Terms of Service and Privacy Policy?
+    actions:
+      - suggest_action: "Open profile form"
+        route_to: "/profile"
+
+  - if: "profile_ok"
+    say: >
+      Thanks ${firstname}, your profile looks great! You’re ready to use PyTune.
+    actions: []
+
+  - else: true
+    say: >
+      Let me know if you need help completing your profile.
+    actions: []
+
+metadata:
+  version: "1.0"
+  lang: en
+  allow_interruptions: true
