@@ -88,6 +88,16 @@ def flatten_user_context(user_context: dict) -> dict:
     flat["user_language"] = user_context.get("language", "en")
     flat["user_history"] = user_context.get("history", [])
 
+
+     # 🔁 Injection intelligente des extra_data
+    for key, value in user_context.items():
+        if key in flat and isinstance(flat[key], dict) and isinstance(value, dict):
+            # Complète le dict existant (ex: user_profile.level)
+            flat[key].update(value)
+        elif key not in flat:
+            flat[key] = value  # Ajoute à la racine (ex: custom_flag)
+
+
     return flat
 
 def eval_condition(condition: str, context: dict) -> bool:
