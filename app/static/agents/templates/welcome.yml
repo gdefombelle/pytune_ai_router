@@ -1,6 +1,6 @@
 name: welcome_agent
 description: >
-  PyTune AI Welcome Agent — guides new users through piano discovery, profile completion, and usage of diagnostic or tuning tools.
+  PyTune AI Welcome Agent — guides users from profile to piano description, serial dating, and diagnostic journey.
 
 triggers:
   - event: user_login
@@ -22,34 +22,57 @@ conversation:
   - if: "not user_profile.form_completed"
     say: >
       Hi ${firstname}, welcome to PyTune!
-      To start, could you fill in a few basic details? It's just a short form.
+      Let's start with a few details about you to personalize your experience.
     actions:
-      - suggest_action: "Open profile form"
+      - suggest_action: "Complete my profile"
         route_to: "/profile"
 
   - elif: "user_pianos.count == 0"
     say: >
-      I'd love to know more about your piano. Could you describe it to me?
-      You can also upload a photo or serial number for precise identification.
+      I’d love to hear about your piano. Do you know the brand or serial number?
+      We can try to date it and learn more together.
     actions:
       - suggest_action: "Describe my piano"
         route_to: "/pianos"
 
   - elif: "not last_diagnosis.exists"
     say: >
-      We can run a quick diagnostic to understand your piano’s current state.
-      Want to try it now?
+      Great! Now let’s check your piano’s acoustic condition with a short recording.
     actions:
-      - suggest_action: "Start diagnosis"
+      - suggest_action: "Run my first diagnosis"
         route_to: "/diagnosis"
 
   - else: true
     say: >
-      Everything looks good, ${firstname}!
-      You can explore your dashboard or ask me anything.
-    actions: []
+      Everything looks ready, ${firstname}! You can:
+      - fine-tune your piano,
+      - revisit your diagnosis,
+      - or explore more info about your instrument.
+    actions:
+      - suggest_action: "Update my piano details"
+        route_to: "/pianos"
+      - suggest_action: "Check my last diagnosis"
+        route_to: "/diagnosis/history"
+      - suggest_action: "Start tuning"
+        route_to: "/tuner"
+
+
+
+prompt_template: |
+  The user is on the dashboard and has completed their profile.
+  They said: "$user_input"
+  Context:
+  - First name: $firstname
+  - Has pianos: $user_pianos.count
+  - Last diagnosis exists: $last_diagnosis.exists
+
+  Respond as a helpful AI assistant. Encourage the user to either:
+  - describe their piano (brand, serial),
+  - date their piano,
+  - start a diagnosis,
+  - or explore tuning features.
 
 metadata:
-  version: "1.0"
+  version: "1.1"
   lang: en
   allow_interruptions: true

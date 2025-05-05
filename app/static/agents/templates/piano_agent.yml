@@ -1,0 +1,81 @@
+name: piano_agent
+description: >
+  PyTune Piano Agent — helps users describe their piano in detail and builds emotional connection.
+
+triggers:
+  - event: page_visit
+    condition: current_page == "/pianos"
+
+context:
+  fetch:
+    - user_profile
+    - user_pianos
+    - user_language
+  variables:
+    no_piano: user_pianos.count == 0
+    first_piano: user_pianos[0] if user_pianos.count > 0 else null
+
+conversation:
+  - if: "no_piano"
+    say: >
+      Hello ${firstname}! 🎹 Let's start by telling me about your piano.
+      What's its brand and model, if you know it?
+    actions:
+      - suggest_action: "Add my piano"
+        route_to: "/pianos/create"
+
+  - elif: "not first_piano.serial_number"
+    say: >
+      Great! Do you have the serial number of your piano?
+      It will help us date your instrument precisely.
+    actions:
+      - suggest_action: "Add serial number"
+        route_to: "/pianos"
+
+  - elif: "not first_piano.year_estimated"
+    say: >
+      If you're not sure of the date, we can try to estimate it based on the serial number.
+      Just let me know if you want me to proceed.
+    actions:
+      - suggest_action: "Estimate year from serial"
+        route_to: "/pianos/dating"
+
+  - elif: "not user_profile.music_start_age"
+    say: >
+      Just curious, when did you start playing the piano?
+    actions: []
+
+  - elif: "not user_profile.music_style or not user_profile.skill_level"
+    say: >
+      Thanks! What kind of music do you enjoy playing? And how would you describe your level?
+    actions: []
+
+  - else: true
+    say: >
+      Thank you for sharing all this with me, ${firstname}! We now know your piano better,
+      and I’m here to help you maintain it, tune it, and get the best out of it.
+
+      Would you like to move on to a quick diagnostic now?
+    actions:
+      - suggest_action: "Start diagnosis"
+        route_to: "/diagnosis"
+      - suggest_action: "Explore tuning options"
+        route_to: "/tuner"
+
+metadata:
+  version: "1.0"
+  lang: en
+  allow_interruptions: true
+
+llm_template: |
+  The user is on the piano page and said: "$user_input"
+  Here is what we know:
+  - Piano brand: ${first_piano.brand}
+  - Model: ${first_piano.model}
+  - Serial number: ${first_piano.serial_number}
+  - Estimated year: ${first_piano.year_estimated}
+  - Style: ${user_profile.music_style}
+  - Skill level: ${user_profile.skill_level}
+  - Started music at: ${user_profile.music_start_age}
+
+  Suggest a kind, insightful, and empathetic message to guide the user through knowing, caring and sharing about their piano.

@@ -1,4 +1,6 @@
 from typing import Optional
+
+from pytune_auth_common.models.schema import UserOut
 from pytune_data.models import UserContext
 from pytune_data.user_data_service import get_user_context
 from simple_logger.logger import get_logger
@@ -6,21 +8,35 @@ from simple_logger.logger import get_logger
 logger = get_logger("ai_router")
 
 
-async def resolve_user_context(user_id: int, extra: Optional[dict] = None) -> dict:
+async def resolve_user_context(user: UserOut, extra: Optional[dict] = None) -> dict:
     """
-    Résout dynamiquement le contexte utilisateur pour une policy AI,
-    en combinant les infos de base (UserContext) et des ajouts dynamiques.
+    Construit un dictionnaire de contexte utilisateur riche à partir :
+    - de l'objet UserOut
+    - de UserContext (chargé depuis la DB)
+    - d’un dictionnaire extra fourni à la volée par le client
     """
+
     try:
-        # 1. Charger le contexte utilisateur depuis la base (via service local)
-        user_context_obj: UserContext = await get_user_context(user_id)
-        base_context = user_context_obj.model_dump()
+        # 1. Départ : dictionnaire de base depuis UserOut
+        full_context = {
+            "user_id": user.id,
+            "email": str(user.email),
+            "user_type": str(user.user_type),
+            "client_status": str(user.client_status),
+            "oauth_provider": user.oauth_provider,
+            "firstname": user.first_name,
+            "lastname": user.last_name,
+        }
 
-        # 2. Fusionner avec les données additionnelles dynamiques
+        # 2. Ajout du contexte enrichi de la base
+        user_context_obj: UserContext = await get_user_context(user.id)
+        full_context.update(user_context_obj.model_dump())
+
+        # 3. Ajout des données dynamiques côté client
         if extra:
-            base_context.update(extra)
+            full_context.update(extra)
 
-        return base_context
+        return full_context
 
     except Exception as e:
         await logger.acritical(f"❌ Erreur dans resolve_user_context: {e}")

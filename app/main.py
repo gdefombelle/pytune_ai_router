@@ -1,6 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -103,13 +103,24 @@ app.include_router(chat_router.router)
 app.include_router(agent_launcher_router)
 
 # 📄 Gestion des erreurs FastAPI
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from fastapi import Request
+import json
+from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
+
+
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request, exc):
-    await logger.acritical("Validation error", extra={"errors": exc.errors(), "body": exc.body})
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    # ✅ Nettoie les erreurs en format JSON-friendly
+    print("Validation error:", exc.errors())
+    print("Body content:", await request.body())
+
     return JSONResponse(
-        status_code=422,
-        content={"detail": exc.errors(), "body": exc.body},
+        status_code=HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": exc.errors()}  # 🔁 Utilise `.errors()` au lieu de str(exc)
     )
+
 
 # 📂 Fichiers statiques (optionnel si besoin)
 static_dir = Path(__file__).parent / "static"

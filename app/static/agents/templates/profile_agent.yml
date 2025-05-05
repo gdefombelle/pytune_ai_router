@@ -51,3 +51,10 @@ metadata:
   version: "1.0"
   lang: en
   allow_interruptions: true
+  llm_model: llama3:instruct
+
+prompt_template: |
+  The user is currently on the profile page.
+  They said: "${user_input}"
+  Here's what we know about them: firstname=${firstname}, email=${email}
+  Suggest a helpful, friendly and concise message to guide them.

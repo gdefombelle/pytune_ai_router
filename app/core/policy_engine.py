@@ -55,23 +55,40 @@ async def evaluate_policy(policy_data: dict, user_context: UserContext) -> dict:
         "meta": {}
     }
 
-def flatten_user_context(user_context: UserContext) -> dict:
-    return {
-        "user_profile": DotDict({
-            "firstname": user_context.firstname,
-            "form_completed": user_context.form_completed,
-        }),
-        "user_pianos": DotDict({
-            "count": len(user_context.pianos),
-        }),
-        "last_diagnosis": DotDict({
-            "exists": user_context.last_diagnosis_exists,
-        }),
-        "tuning_session": DotDict({
-            "exists": user_context.tuning_session_exists,
-        }),
-        "user_language": user_context.language,
+def flatten_user_context(user_context: dict) -> dict:
+    """
+    À partir d’un contexte utilisateur riche (dict), produit une version “flat”
+    directement utilisable dans eval(condition).
+    Supporte les structures en pointillés : user_profile.x, user_pianos.count, etc.
+    """
+    flat = {}
+
+    # 1. Rattacher les groupes connus
+    flat["user_profile"] = {
+        "firstname": user_context.get("firstname"),
+        "lastname": user_context.get("lastname"),
+        "form_completed": user_context.get("form_completed"),
+        "logged_in": True,
+        "city": user_context.get("city"),
+        "country": user_context.get("country"),
     }
+
+    flat["user_pianos"] = {
+        "count": len(user_context.get("pianos") or []),
+    }
+
+    flat["last_diagnosis"] = {
+        "exists": user_context.get("last_diagnosis_exists", False)
+    }
+
+    flat["tuning_session"] = {
+        "exists": user_context.get("tuning_session_exists", False)
+    }
+
+    flat["user_language"] = user_context.get("language", "en")
+    flat["user_history"] = user_context.get("history", [])
+
+    return flat
 
 def eval_condition(condition: str, context: dict) -> bool:
     """

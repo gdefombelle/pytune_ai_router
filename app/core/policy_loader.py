@@ -1,16 +1,15 @@
-# app/core/policy_loader.py
+# ✅ app/core/policy_loader.py
 
 import os
 from pathlib import Path
 import yaml
+from string import Template
 from app.core.policy_engine import evaluate_policy
 from app.models.policy_model import AgentResponse
-from pytune_data.models import UserContext
-from string import Template
+from app.core.llm_connector import call_llm
 
-# Définir la racine du projet
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # <- un cran au-dessus de /core
-
+# 🔧 Définir la racine du projet
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def load_yaml(path: str | Path) -> dict:
@@ -21,33 +20,38 @@ def load_yaml(path: str | Path) -> dict:
         return yaml.safe_load(file)
 
 
-async def load_policy_and_resolve(agent_name: str, user_context: UserContext) -> AgentResponse:
+async def load_policy_and_resolve(agent_name: str, user_context: dict) -> AgentResponse:
     """
-    Load a policy YAML file and resolve the conversation flow based on the user context.
+    Charge et exécute une policy YAML en fonction du contexte utilisateur.
     """
-    # 🔥 1. Construire le chemin correct vers static/agents/
+    # 1. Chemin du fichier de policy
     policy_path = os.path.join(BASE_DIR, "static", "agents", "templates", f"{agent_name}.yml")
-
-    policy_path = os.path.abspath(policy_path)
-
-    # 🔥 2. Charger la policy YAML
     policy_data = load_yaml(policy_path)
 
-    # 🔥 3. Lancer l'évaluation de la policy avec le contexte utilisateur
+    # 2. Évaluation principale des règles (if/else/say)
     evaluated_response = await evaluate_policy(policy_data, user_context)
 
-    # 🔁 Si le champ 'say' est présent, transforme-le en 'message'
+    # 3. Si "say" est présent → interpolation + renvoi direct
     if "say" in evaluated_response:
         evaluated_response["message"] = evaluated_response.pop("say")
 
-    # 🔡 Interpolation via Template
-    if "message" in evaluated_response:
-        template = Template(evaluated_response["message"])
-        evaluated_response["message"] = template.safe_substitute({
-            "firstname": user_context.firstname
-        })
+        # 🔁 Interpolation template
+        if "message" in evaluated_response:
+            template = Template(evaluated_response["message"])
+            evaluated_response["message"] = template.safe_substitute(user_context)
 
-    # 🔥 4. Retourner un AgentResponse formaté
+    # 4. Sinon → fallback IA via prompt_template (si défini)
+    elif "prompt_template" in policy_data:
+        prompt_template = policy_data["prompt_template"]
+        prompt = Template(prompt_template).safe_substitute(user_context)
+        message = await call_llm(prompt=prompt, context=user_context)
+        evaluated_response["message"] = message
+
+    # 5. Dernier recours : pas de réponse possible
+    else:
+        evaluated_response["message"] = "🤖 I’m here, but no rule matched and no AI fallback was defined."
+
+    # 6. Emballage dans un AgentResponse
     return AgentResponse(
         message=evaluated_response.get("message", "No message"),
         actions=evaluated_response.get("actions", []),
