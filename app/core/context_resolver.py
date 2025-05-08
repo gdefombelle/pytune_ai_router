@@ -7,7 +7,6 @@ from simple_logger.logger import get_logger
 
 logger = get_logger("ai_router")
 
-
 async def resolve_user_context(user: UserOut, extra: Optional[dict] = None) -> dict:
     """
     Construit un dictionnaire de contexte utilisateur riche à partir :
@@ -30,11 +29,20 @@ async def resolve_user_context(user: UserOut, extra: Optional[dict] = None) -> d
 
         # 2. Ajout du contexte enrichi de la base
         user_context_obj: UserContext = await get_user_context(user.id)
-        full_context.update(user_context_obj.model_dump())
+        base_ctx = user_context_obj.model_dump()
+        full_context.update(base_ctx)
 
-        # 3. Ajout des données dynamiques côté client
+        # 3. Injection intelligente des données extra
         if extra:
-            full_context.update(extra)
+            for key, value in extra.items():
+                if key == "user_input":
+                    full_context["user_input"] = value
+                elif "user_profile" in full_context and key in full_context["user_profile"]:
+                    # Mise à jour dans user_profile si la clé y existe
+                    full_context["user_profile"][key] = value
+                else:
+                    # Sinon on ajoute à la racine
+                    full_context[key] = value
 
         return full_context
 

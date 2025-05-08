@@ -7,6 +7,7 @@ from app.core.context_resolver import resolve_user_context
 from pytune_auth_common.models.schema import UserOut
 from pytune_auth_common.services.auth_checks import get_current_user
 from app.models.policy_model import AgentResponse
+from fastapi import Request
 
 router = APIRouter(prefix="/ai/agents", tags=["AI Agents"])
 
@@ -36,9 +37,6 @@ async def evaluate_agent(
     full_context = await resolve_user_context(user, extra=user_input)
     return await load_policy_and_resolve(agent_name, full_context)
 
-
-from fastapi import Request
-
 @router.post("/{agent_name}/message", response_model=AgentResponse)
 async def agent_message(
     agent_name: str,
@@ -52,5 +50,14 @@ async def agent_message(
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
     user_message = payload.get("message", "")
-    context = await resolve_user_context(user, extra={"user_input": user_message})
+    extra_context = payload.get("extra_context", {})
+
+    # 🔁 Merge user_input with extra_context
+    full_extra = {
+        **extra_context,
+        "user_input": user_message,
+        "raw_user_input": user_message
+    }
+
+    context = await resolve_user_context(user, extra=full_extra)
     return await load_policy_and_resolve(agent_name, context)

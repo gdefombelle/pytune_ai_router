@@ -1,14 +1,13 @@
-# app/core/llm_backends/openai_backend.py
-
 import httpx
 from app.core.settings import get_openai_key
 
 
 async def call_openai_llm(prompt: str, context: dict) -> str:
     api_key = get_openai_key()
+    model = context.get("llm_model", "gpt-3.5-turbo")  # ✅ utilise le modèle précisé dans la policy ou fallback
 
     payload = {
-        "model": "gpt-3.5-turbo",
+        "model": model,
         "messages": [
             {
                 "role": "system",

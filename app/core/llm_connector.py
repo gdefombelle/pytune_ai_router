@@ -1,20 +1,26 @@
-from app.core.settings import get_llm_backend, config
+from app.core.settings import get_llm_backend, get_openai_key, get_ollama_url, get_supported_llm_models
 from app.core.llm_backends.openai_backend import call_openai_llm
 from app.core.llm_backends.ollama_backend import call_ollama_llm
 
 async def call_llm(prompt: str, context: dict, metadata: dict = None) -> str:
-    backend = get_llm_backend()
+    metadata = metadata or {}
 
-    # Ordre de priorité : policy.yaml > contexte utilisateur > config par défaut
-    llm_model = (
-        (metadata or {}).get("llm_model")
-        or context.get("llm_model")
-        or config.OLLAMA_MODEL
-        or "mistral"
-    )
+    # 1. Récupérer backend et modèle
+    backend = metadata.get("llm_backend") or get_llm_backend()
+    llm_model = metadata.get("llm_model") or context.get("llm_model") or "mistral"
 
-    context["llm_model"] = llm_model  # injecte dans le contexte pour usage backend
+    # 2. Valider contre les modèles supportés
+    supported_models = get_supported_llm_models()
+    supported = supported_models.get(backend, set())
 
+    if llm_model not in supported:
+        raise ValueError(f"❌ LLM model '{llm_model}' is not supported for backend '{backend}'")
+
+    # 3. Injecter dans le contexte (optionnel mais utile)
+    context["llm_model"] = llm_model
+    context["llm_backend"] = backend
+
+    # 4. Appel du backend correspondant
     if backend == "openai":
         return await call_openai_llm(prompt, context)
 

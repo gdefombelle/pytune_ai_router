@@ -10,6 +10,8 @@ context:
   fetch:
     - user_profile
     - user_language
+    - raw_user_input
+
   variables:
     profile_ok: >
       user_profile.firstname and
@@ -20,6 +22,12 @@ context:
       user_profile.privacy_accepted
 
 conversation:
+  # 1. Si l'utilisateur dit quelque chose → priorité à l’IA
+  - if: raw_user_input
+    say: ${llm_response}
+    actions: []
+
+  # 2. Sinon, logique classique de complétion du profil
   - if: "not user_profile.firstname"
     say: >
       Let's start with your first name. What should I call you?
@@ -30,31 +38,45 @@ conversation:
       Where are you located? Please enter your city and country so I can assist better.
     actions: []
 
-  - if: "not user_profile.terms_accepted or not user_profile.privacy_accepted"
+  - if: "not user_profile.phone_number"
     say: >
-      Before going further, could you please accept the Terms of Service and Privacy Policy?
-    actions:
-      - suggest_action: "Open profile form"
-        route_to: "/profile"
-
-  - if: "profile_ok"
-    say: >
-      Thanks ${firstname}, your profile looks great! You’re ready to use PyTune.
+      Would you like to add your phone number? It helps us secure your account and send verification if needed.
     actions: []
 
+  - if: "not user_profile.terms_accepted or not user_profile.privacy_accepted"
+    say: >
+      Before going further, please review and accept the Terms of Service and Privacy Policy.
+    actions:
+      - suggest_action: "View Terms of Service"
+        route_to: "/documents/PyTune_Terms_of_Service.pdf"
+      - suggest_action: "View Privacy Policy"
+        route_to: "/documents/PyTune_Privacy_Policy_English.pdf"
+
+  # 3. Fallback final
   - else: true
     say: >
-      Let me know if you need help completing your profile.
+      Everything looks great, ${firstname}! 🎉  
+      You can now click the green "Save Changes" button below to confirm your profile.  
+      Let me know if you ever want to make updates later!
     actions: []
 
 metadata:
-  version: "1.0"
+  version: "1.4"
   lang: en
   allow_interruptions: true
-  llm_model: llama3:instruct
+  llm_backend: ollama          # ✅ ajouté ici
+  llm_model: llama3:latest   # ✅ modèle spécifique
 
 prompt_template: |
   The user is currently on the profile page.
-  They said: "${user_input}"
-  Here's what we know about them: firstname=${firstname}, email=${email}
-  Suggest a helpful, friendly and concise message to guide them.
+  They said: "${raw_user_input}"
+  Here's what we know about them: 
+  - firstname: ${firstname}
+  - email: ${email}
+  - city: ${user_profile.city}
+  - country: ${user_profile.country}
+  - phone: ${user_profile.phone_number}
+  - accepted terms: ${user_profile.terms_accepted}
+  - accepted privacy: ${user_profile.privacy_accepted}
+
+  Respond in a helpful, friendly, and concise way to guide the user.
