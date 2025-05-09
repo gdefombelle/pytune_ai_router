@@ -35,12 +35,12 @@ conversation:
 
   - if: "not user_profile.city or not user_profile.country"
     say: >
-      Where are you located? Please enter your city and country so I can assist better.
+      Where are you located? Please enter your CITY and COUNTRY so I can assist better.
     actions: []
 
   - if: "not user_profile.phone_number"
     say: >
-      Would you like to add your phone number? It helps us secure your account and send verification if needed.
+      Would you like to add your PHONE NUMBER? It helps us secure your account and send verification if needed.
     actions: []
 
   - if: "not user_profile.terms_accepted or not user_profile.privacy_accepted"
@@ -58,25 +58,35 @@ conversation:
       Everything looks great, ${firstname}! 🎉  
       You can now click the green "Save Changes" button below to confirm your profile.  
       Let me know if you ever want to make updates later!
-    actions: []
+    actions:
+      - trigger_event: save_profile
+        params:
+          auto: true
 
 metadata:
   version: "1.4"
   lang: en
   allow_interruptions: true
-  llm_backend: ollama          # ✅ ajouté ici
-  llm_model: llama3:latest   # ✅ modèle spécifique
+  llm_backend: openai          # ✅ cloud
+  llm_model: gpt-4.1-nano   # ✅  plus puissant que gpt-3.5-turbo moins chère
 
 prompt_template: |
-  The user is currently on the profile page.
-  They said: "${raw_user_input}"
-  Here's what we know about them: 
-  - firstname: ${firstname}
-  - email: ${email}
-  - city: ${user_profile.city}
-  - country: ${user_profile.country}
-  - phone: ${user_profile.phone_number}
-  - accepted terms: ${user_profile.terms_accepted}
-  - accepted privacy: ${user_profile.privacy_accepted}
+  You are helping {{ firstname or "this user" }} complete their profile on PyTune.
 
-  Respond in a helpful, friendly, and concise way to guide the user.
+  They just said: "${raw_user_input}"
+
+  Current user data:
+  - Name: ${firstname}
+  - Email: ${email}
+  - City: ${user_profile.city}
+  - Country: ${user_profile.country}
+  - Phone: ${user_profile.phone_number}
+  - Accepted Terms: ${user_profile.terms_accepted}
+  - Accepted Privacy Policy: ${user_profile.privacy_accepted}
+  
+  Assume ${firstname} is a new user who just joined PyTune and needs friendly, simple guidance.
+
+  Reply in a concise, helpful and warm tone. 
+  You are a human-style assistant, not a chatbot.  
+  Focus only on what can really help now.
+

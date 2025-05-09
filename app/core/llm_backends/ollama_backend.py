@@ -12,7 +12,7 @@ async def call_ollama_llm(prompt: str, context: dict) -> str:
     }
 
     try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
+        async with httpx.AsyncClient(timeout=40.0) as client:
             response = await client.post(f"{ollama_url}/api/generate", json=payload)
             response.raise_for_status()
             result = response.json()
