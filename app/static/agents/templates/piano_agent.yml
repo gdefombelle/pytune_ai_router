@@ -1,6 +1,6 @@
 name: piano_agent
 description: >
-  PyTune Piano Agent — helps users describe their piano in detail and builds emotional connection.
+  PyTune Piano Agent — guides the user in describing their piano and builds an emotional profile. Starts with a photo if possible.
 
 triggers:
   - event: page_visit
@@ -9,53 +9,71 @@ triggers:
 context:
   fetch:
     - user_profile
-    - user_pianos
-    - user_language
+  extra:
+    - raw_user_input
+    - first_piano
+
   variables:
-    no_piano: user_pianos.count == 0
-    first_piano: user_pianos[0] if user_pianos.count > 0 else null
+    first_piano: first_piano
+    no_piano: not first_piano or not first_piano.brand
 
 conversation:
-  - if: "no_piano"
+  # 1. Input utilisateur prioritaire
+  - if: raw_user_input
+    say: ${llm_response}
+    actions: []
+
+  # 2. Aucun piano reconnu → commence par une photo ou une marque
+  - if: no_piano
     say: >
-      Hello ${firstname}! 🎹 Let's start by telling me about your piano.
-      What's its brand and model, if you know it?
+      Do you have a photo of your piano? I might be able to recognize the brand.  
+      Otherwise, feel free to tell me the brand name directly.
     actions:
-      - suggest_action: "Add my piano"
-        route_to: "/pianos/create"
+      - suggest_action: "Upload a photo"
+        action: trigger_upload
+        params:
+          accept: "image/*"
+      - suggest_action: "Type brand name"
+        action: open_brand_autocomplete
+        params:
+          endpoint: "/piano_manufacturers/search?query="
+
+  # 3. Piano en cours de saisie → compléter les infos
+  - elif: "not first_piano.model"
+    say: >
+      Do you happen to know the model name or number?
+    actions: []
 
   - elif: "not first_piano.serial_number"
     say: >
-      Great! Do you have the serial number of your piano?
-      It will help us date your instrument precisely.
+      If you have the serial number, I can estimate the year.
     actions:
       - suggest_action: "Add serial number"
         route_to: "/pianos"
 
   - elif: "not first_piano.year_estimated"
     say: >
-      If you're not sure of the date, we can try to estimate it based on the serial number.
-      Just let me know if you want me to proceed.
+      If you’re not sure of the year, I can try to estimate it based on brand or serial number.
     actions:
-      - suggest_action: "Estimate year from serial"
+      - suggest_action: "Estimate year"
         route_to: "/pianos/dating"
 
+  # 4. Phase émotionnelle
   - elif: "not user_profile.music_start_age"
     say: >
-      Just curious, when did you start playing the piano?
+      When did you start playing the piano, just out of curiosity?
     actions: []
 
   - elif: "not user_profile.music_style or not user_profile.skill_level"
     say: >
-      Thanks! What kind of music do you enjoy playing? And how would you describe your level?
+      What kind of music do you enjoy playing? And how would you describe your level?
     actions: []
 
+  # 5. Clôture
   - else: true
     say: >
-      Thank you for sharing all this with me, ${firstname}! We now know your piano better,
-      and I’m here to help you maintain it, tune it, and get the best out of it.
-
-      Would you like to move on to a quick diagnostic now?
+      Thank you so much for sharing all this with me, ${firstname}!  
+      You can now explore diagnosis, tutorials, or tuning options below.
     actions:
       - suggest_action: "Start diagnosis"
         route_to: "/diagnosis"
@@ -63,19 +81,25 @@ conversation:
         route_to: "/tuner"
 
 metadata:
-  version: "1.0"
+  version: "2.3"
   lang: en
   allow_interruptions: true
+  llm_backend: openai
+  llm_model: gpt-4.1-nano
 
-llm_template: |
-  The user is on the piano page and said: "$user_input"
-  Here is what we know:
-  - Piano brand: ${first_piano.brand}
+prompt_template: |
+  You are helping {{ firstname or "the user" }} describe their piano on PyTune.
+
+  They just said: "${raw_user_input}"
+
+  Context:
+  - Brand: ${first_piano.brand}
   - Model: ${first_piano.model}
-  - Serial number: ${first_piano.serial_number}
-  - Estimated year: ${first_piano.year_estimated}
+  - Serial: ${first_piano.serial_number}
+  - Year: ${first_piano.year_estimated}
+  - Started playing at: ${user_profile.music_start_age}
   - Style: ${user_profile.music_style}
-  - Skill level: ${user_profile.skill_level}
-  - Started music at: ${user_profile.music_start_age}
+  - Level: ${user_profile.skill_level}
 
-  Suggest a kind, insightful, and empathetic message to guide the user through knowing, caring and sharing about their piano.
+  Respond in a warm, concise and helpful tone.  
+  Always favor conversation flow and don't jump ahead.

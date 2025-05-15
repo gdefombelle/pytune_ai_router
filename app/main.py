@@ -109,18 +109,31 @@ from fastapi import Request
 import json
 from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
 
-
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    # ✅ Nettoie les erreurs en format JSON-friendly
-    print("Validation error:", exc.errors())
-    print("Body content:", await request.body())
+    try:
+        raw_body = await request.body()
+        try:
+            decoded_body = raw_body.decode("utf-8")
+        except Exception:
+            decoded_body = repr(raw_body)  # ✅ safe
 
-    return JSONResponse(
-        status_code=HTTP_422_UNPROCESSABLE_ENTITY,
-        content={"detail": exc.errors()}  # 🔁 Utilise `.errors()` au lieu de str(exc)
-    )
+        # ✅ DEBUG : log en console pour dev
+        print("❌ Validation error:", exc.errors())
+        print("📦 Raw body:", decoded_body)
 
+        return JSONResponse(
+            status_code=422,
+            content={
+                "detail": exc.errors(),
+                "body": decoded_body
+            }
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Exception handler failed", "error": str(e)}
+        )
 
 # 📂 Fichiers statiques (optionnel si besoin)
 static_dir = Path(__file__).parent / "static"
