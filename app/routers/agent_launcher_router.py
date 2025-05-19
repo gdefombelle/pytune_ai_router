@@ -9,6 +9,7 @@ from pytune_auth_common.services.auth_checks import get_current_user
 from app.models.policy_model import AgentResponse
 from fastapi import Request
 from fastapi import Body
+from app.core.context_enrichment import enrich_context
 
 router = APIRouter(prefix="/ai/agents", tags=["AI Agents"])
 
@@ -21,7 +22,8 @@ async def start_agent(
 ):
    
     full_context = await resolve_user_context(user, extra=extra_context)
-    return await load_policy_and_resolve(agent_name, full_context)
+    enriched_context = enrich_context(full_context)
+    return await load_policy_and_resolve(agent_name, enriched_context)
 
 
 @router.post("/{agent_name}/evaluate", response_model=AgentResponse)
@@ -57,4 +59,6 @@ async def agent_message(
     }
 
     context = await resolve_user_context(user, extra=full_extra)
-    return await load_policy_and_resolve(agent_name, context)
+    enriched_context = enrich_context(context)
+    result = await load_policy_and_resolve(agent_name, enriched_context)
+    return result

@@ -7,7 +7,7 @@ async def call_llm(prompt: str, context: dict, metadata: dict = None) -> str:
 
     # 1. Récupérer backend et modèle
     backend = metadata.get("llm_backend") or get_llm_backend()
-    llm_model = metadata.get("llm_model") or context.get("llm_model") or "mistral"
+    llm_model = metadata.get("llm_model") or context.get("llm_model") or "gpt-4.1-nano"
 
     # 2. Valider contre les modèles supportés
     supported_models = get_supported_llm_models()

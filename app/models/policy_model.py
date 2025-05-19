@@ -60,5 +60,6 @@ class Policy(BaseModel):
 
 class AgentResponse(BaseModel):
     message: str
-    actions: List[dict] = []   # ← list par défaut
-    meta: Dict[str, Any] = {}
+    actions: list = []
+    meta: dict = {}
+    context_update: Optional[Dict[str, Any]] = None

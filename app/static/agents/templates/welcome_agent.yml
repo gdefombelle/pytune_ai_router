@@ -62,6 +62,12 @@ conversation:
       - suggest_action: "Start tuning"
         route_to: "/tuner"
 
+metadata:
+  version: "1.1"
+  lang: en
+  allow_interruptions: true
+  llm_backend: openai          # ✅ cloud
+  llm_model: gpt-4.1-nano   # ✅  plus puissant que gpt-3.5-turbo moins chère
 
 
 prompt_template: |
@@ -78,9 +84,3 @@ prompt_template: |
   - start a diagnosis,
   - or explore tuning features.
 
-metadata:
-  version: "1.1"
-  lang: en
-  allow_interruptions: true
-  llm_backend: openai          # ✅ cloud
-  llm_model: gpt-4.1-nano   # ✅  plus puissant que gpt-3.5-turbo moins chère

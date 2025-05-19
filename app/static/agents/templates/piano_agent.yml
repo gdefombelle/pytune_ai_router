@@ -29,12 +29,13 @@ conversation:
       Do you have a photo of your piano? I might be able to recognize the brand.  
       Otherwise, feel free to tell me the brand name directly.
     actions:
+      - trigger_event: set_placeholder
+        params:
+          value: "Type the brand and model if you know them..."
       - suggest_action: "Upload a photo"
         action: trigger_upload
         params:
           accept: "image/*"
-      - suggest_action: "Type brand name"
-        action: open_brand_autocomplete
         params:
           endpoint: "/piano_manufacturers/search?query="
 
@@ -85,7 +86,7 @@ metadata:
   lang: en
   allow_interruptions: true
   llm_backend: openai
-  llm_model: gpt-4.1-nano
+  llm_model: gpt-3.5-turbo
 
 prompt_template: |
   You are helping {{ firstname or "the user" }} describe their piano on PyTune.
@@ -101,5 +102,16 @@ prompt_template: |
   - Style: ${user_profile.music_style}
   - Level: ${user_profile.skill_level}
 
-  Respond in a warm, concise and helpful tone.  
-  Always favor conversation flow and don't jump ahead.
+  First, respond in a warm, concise and helpful tone.
+  Then, provide a JSON block like this if you can extract any structured info:
+
+  ```json
+  {
+    "first_piano": {
+      "brand": "Yamaha",
+      "model": "CX1",
+      "serial_number": "123456",
+      "type": "upright",
+      "year_estimated": 1995
+    }
+  }
