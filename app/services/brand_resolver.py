@@ -8,44 +8,45 @@ async def resolve_brand_name(brand: str, email: str) -> dict:
     """
     Résout une marque de piano :
     1. Vérifie dans la base PyTune
-    2. Si introuvable, tente un enrichissement via LLM
+    2. Si introuvable, tente un enrichissement structuré via LLM
     3. Si échec, tente une correction orthographique simple
     """
 
     # Étape 1 — Recherche directe dans la base PyTune
     result = await search_manufacturer(brand, email)
+    print("🔍 Résultat brut de search_manufacturer:", result)
     if result:
         return {
             "status": "found",
-            "matched_name": result[0]["name"],
+            "matched_name": result[0]["company"],
             "manufacturer_id": result[0]["id"]
         }
 
-    # Étape 2 — Enrichissement LLM avancé
+
+
+    # Étape 2 — Enrichissement via LLM (si nom inconnu)
     enrichment_prompt = f"""
-You are an expert in historical piano manufacturers.
+You are an expert in piano manufacturers.
 
-Given the brand name "{brand}", research and extract structured information as follows.
+The user entered: "{brand}".
 
-Please return a valid JSON object with these fields:
+Please determine if this is a real piano or musical instrument brand.
 
-- "brand": Full and correct brand name (e.g. "Blüthner")
-- "country": Country of origin (e.g. "Germany")
-- "city": City of founding or headquarters (e.g. "Leipzig")
-- "years_active": Period of activity (e.g. "1853–present")
-- "acquired_by": If acquired, specify the company; otherwise, null
-- "notes": A detailed paragraph including:
-    - the historical context of the brand (founder, founding date, etc.)
-    - technical innovations or distinctive features
-    - historical events (e.g. wars, crises)
-    - famous musicians or composers associated with the brand (e.g. Brahms, Debussy)
+👉 If it is **not** related to pianos or instruments (e.g., it's a car, tech, or clothing brand), return:
+{{ "error": "Not a piano brand. Ask the user to confirm or upload a photo." }}
 
-💡 Use reliable, verifiable knowledge only.
-❗️Output only a valid JSON object. No explanation or preamble.
+👉 Otherwise, return a valid JSON with these fields:
+- brand
+- country
+- city
+- years_active
+- acquired_by (or null)
+- notes: including historical facts, innovations, known pianists (e.g. Debussy)
+
+💡 Output strictly valid JSON. Do not include markdown or explanation.
 
 Example:
 
-```json
 {{
   "brand": "Blüthner",
   "country": "Germany",
@@ -63,15 +64,22 @@ Example:
             metadata={"llm_backend": "openai", "llm_model": "gpt-3.5-turbo"}
         )
 
-        # 🧠 Extraction JSON robuste
-        match = re.search(r"```json\s*({[\s\S]+?})\s*```", response)
-        raw_json = match.group(1) if match else response.strip()
+        # Extraire le JSON retourné (avec ou sans bloc ```json)
+        match = re.search(r"{[\s\S]+}", response)
+        raw_json = match.group(0) if match else response.strip()
         parsed = json.loads(raw_json)
+
+        if "error" in parsed:
+            return {
+                "status": "rejected",
+                "original": brand,
+                "reason": parsed["error"]
+            }
 
         return {
             "status": "enriched",
             "original": brand,
-            "corrected": parsed["brand"],
+            "corrected": parsed.get("brand", brand),
             "llm_data": parsed
         }
 
@@ -83,11 +91,11 @@ Example:
                 "attempted_brand": brand
             }
 
-    # Étape 3 — Correction orthographique simple (fallback)
+    # Étape 3 — Correction orthographique simple
     correction_prompt = f"""
 The user entered this brand name: "{brand}".
 Try to guess the most likely correct piano manufacturer name.
-Return only the corrected name in plain text.
+Return only the corrected name in plain text (no formatting).
 """
 
     try:
@@ -112,7 +120,7 @@ Return only the corrected name in plain text.
     except Exception as e:
         print("⚠️ LLM correction failed:", e)
 
-    # Échec complet
+    # Échec total
     return {
         "status": "not_found",
         "attempted_brand": brand

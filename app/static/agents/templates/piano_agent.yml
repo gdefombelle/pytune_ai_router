@@ -30,13 +30,13 @@ conversation:
       Otherwise, feel free to tell me the brand name directly.
     actions:
       - trigger_event: set_placeholder
+        suggest_action: ""
         params:
           value: "Type the brand and model if you know them..."
       - suggest_action: "Upload a photo"
         action: trigger_upload
         params:
           accept: "image/*"
-        params:
           endpoint: "/piano_manufacturers/search?query="
 
   # 3. Piano en cours de saisie → compléter les infos

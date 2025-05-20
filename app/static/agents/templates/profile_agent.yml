@@ -60,6 +60,7 @@ conversation:
       Let me know if you ever want to make updates later!
     actions:
       - trigger_event: save_profile
+        suggest_action: "💾 Save Changes"
         params:
           auto: true
 
