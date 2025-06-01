@@ -34,7 +34,7 @@ conversation:
         params:
           value: "Type the brand and model if you know them..."
       - suggest_action: "Upload a photo"
-        action: trigger_upload
+        trigger_event: trigger_upload
         params:
           accept: "image/*"
           endpoint: "/piano_manufacturers/search?query="
