@@ -5,7 +5,7 @@ def run_uvicorn():
         "app.main:app",
         host="0.0.0.0",
         port=8006,
-        reload=True,  # Mettre à True si dev local uniquement
+        reload=False,  # Mettre à True si dev local uniquement
         log_level="info",
     )
 

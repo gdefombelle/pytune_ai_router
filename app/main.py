@@ -51,23 +51,23 @@ except Exception as e:
     raise RuntimeError("Failed to set RateLimit") from e
 
 # 🌟 Lifespan
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    try:
-        await logger.asuccess("PYTUNE AI ROUTER READY!")
-        yield
-    except asyncio.CancelledError:
-        await logger.acritical("❌ Lifespan cancelled")
-        raise
-    finally:
-        await logger.asuccess("✅ Lifespan finished without errors")
+# @asynccontextmanager
+# async def lifespan(app: FastAPI):
+#     try:
+#         await logger.asuccess("PYTUNE AI ROUTER READY!")
+#         yield
+#     except asyncio.CancelledError:
+#         await logger.acritical("❌ Lifespan cancelled")
+#         raise
+#     finally:
+#         await logger.asuccess("✅ Lifespan finished without errors")
 
 # 🚀 FastAPI app
 app = FastAPI(
     title=PROJECT_TITLE,
     version=PROJECT_VERSION,
     description=PROJECT_DESCRIPTION,
-    lifespan=lifespan,
+    # lifespan=lifespan,
 )
 
 # 🔗 Middleware CORS
@@ -101,6 +101,7 @@ else:
 app.include_router(chat_router.router)
 # app.include_router(welcome_agent_router.router)
 app.include_router(agent_launcher_router)
+
 
 # 📄 Gestion des erreurs FastAPI
 from fastapi.exceptions import RequestValidationError

@@ -1,4 +1,5 @@
 name: piano_agent
+
 description: >
   PyTune Piano Agent — guides the user in describing their piano and builds an emotional profile. Starts with a photo if possible.
 
@@ -25,21 +26,37 @@ conversation:
 
   # 2. Aucun piano reconnu → commence par une photo ou une marque
   - if: no_piano
-    say: >
-      Do you have a photo of your piano? I might be able to recognize the brand.  
-      Otherwise, feel free to tell me the brand name directly.
+    say: |-
+      You can type, speak using the 🎤 icon, upload photos, or fill in the form below to describe your piano.
     actions:
       - trigger_event: set_placeholder
         suggest_action: ""
         params:
           value: "Type the brand and model if you know them..."
-      - suggest_action: "Upload a photo"
-        trigger_event: trigger_upload
-        params:
-          accept: "image/*"
-          endpoint: "/piano_manufacturers/search?query="
+      - suggest_action: "Guided upload photos"
+        trigger_event: open_photo_guide
+      - suggest_action: "Where is the serial number?"
+        trigger_event: show_serial_help
 
-  # 3. Piano en cours de saisie → compléter les infos
+  # 3. Piano identifié automatiquement (via image)
+  - elif: first_piano and first_piano.category and first_piano.size_cm and not first_piano.confirmed
+    say: >
+      I’ve inferred some information about your piano using PyTune’s image recognition system. 🧠
+
+      This feature is still experimental — please double-check the brand, type, and size, and confirm if correct.
+
+      {%- if not first_piano.serial_number and first_piano.year_estimated %}
+      ⚠️ The year shown is only an **estimate** based on the photos, since the serial number wasn’t detected.
+      {% endif %}
+
+      If you find the serial number, I can refine the year more precisely.
+    actions:
+      - suggest_action: "Confirm my piano"
+        route_to: "/pianos"
+      - suggest_action: "Where is the serial number?"
+        trigger_event: show_serial_help
+
+  # 4. Piano en cours de saisie → compléter les infos
   - elif: "not first_piano.model"
     say: >
       Do you happen to know the model name or number?
@@ -51,6 +68,8 @@ conversation:
     actions:
       - suggest_action: "Add serial number"
         route_to: "/pianos"
+      - suggest_action: "Where is the serial number?"
+        trigger_event: show_serial_help
 
   - elif: "not first_piano.year_estimated"
     say: >
@@ -59,7 +78,7 @@ conversation:
       - suggest_action: "Estimate year"
         route_to: "/pianos/dating"
 
-  # 4. Phase émotionnelle
+  # 5. Phase émotionnelle
   - elif: "not user_profile.music_start_age"
     say: >
       When did you start playing the piano, just out of curiosity?
@@ -70,8 +89,9 @@ conversation:
       What kind of music do you enjoy playing? And how would you describe your level?
     actions: []
 
-  # 5. Clôture
+  # 6. Clôture
   - else: true
+    continue_if: first_piano.brand and first_piano.category and first_piano.size_cm
     say: >
       Thank you so much for sharing all this with me, ${firstname}!  
       You can now explore diagnosis, tutorials, or tuning options below.
@@ -82,7 +102,7 @@ conversation:
         route_to: "/tuner"
 
 metadata:
-  version: "2.3"
+  version: "2.6"
   lang: en
   allow_interruptions: true
   llm_backend: openai
@@ -98,6 +118,9 @@ prompt_template: |
   - Model: ${first_piano.model}
   - Serial: ${first_piano.serial_number}
   - Year: ${first_piano.year_estimated}
+  - Category: ${first_piano.category}
+  - Type: ${first_piano.type}
+  - Size (cm): ${first_piano.size_cm}
   - Started playing at: ${user_profile.music_start_age}
   - Style: ${user_profile.music_style}
   - Level: ${user_profile.skill_level}
@@ -111,7 +134,9 @@ prompt_template: |
       "brand": "Yamaha",
       "model": "CX1",
       "serial_number": "123456",
-      "type": "upright",
+      "category": "upright",
+      "type": "studio",
+      "size_cm": 123,
       "year_estimated": 1995
     }
   }

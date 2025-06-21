@@ -1,7 +1,7 @@
 import json
 import re
-from app.core.llm_connector import call_llm
-from pytune_data.piano_data_service import search_manufacturer
+from pytune_llm.llm_connector import call_llm
+from pytune_data.piano_data_service import search_manufacturer, search_manufacturer_full
 
 
 async def resolve_brand_name(brand: str, email: str) -> dict:
@@ -13,7 +13,7 @@ async def resolve_brand_name(brand: str, email: str) -> dict:
     """
 
     # Étape 1 — Recherche directe dans la base PyTune
-    result = await search_manufacturer(brand, email)
+    result = await search_manufacturer_full(brand, email)
     print("🔍 Résultat brut de search_manufacturer:", result)
     if result:
         return {
