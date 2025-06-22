@@ -1,17 +1,14 @@
 name: profile_agent
 description: >
   PyTune Profile Assistant — helps users complete their profile step by step.
-
 triggers:
   - event: user_login
     condition: not user_profile.form_completed
-
 context:
   fetch:
     - user_profile
     - user_language
     - raw_user_input
-
   variables:
     profile_ok: >
       user_profile.firstname and
@@ -20,29 +17,22 @@ context:
       user_profile.country and
       user_profile.terms_accepted and
       user_profile.privacy_accepted
-
 conversation:
-  # 1. Si l'utilisateur dit quelque chose → priorité à l’IA
   - if: raw_user_input
     say: ${llm_response}
     actions: []
-
-  # 2. Sinon, logique classique de complétion du profil
   - if: "not user_profile.firstname"
     say: >
       Let's start with your first name. What should I call you?
     actions: []
-
   - if: "not user_profile.city or not user_profile.country"
     say: >
       Where are you located? Please enter your CITY and COUNTRY so I can assist better.
     actions: []
-
   - if: "not user_profile.phone_number"
     say: >
       Would you like to add your PHONE NUMBER? It helps us secure your account and send verification if needed.
     actions: []
-
   - if: "not user_profile.terms_accepted or not user_profile.privacy_accepted"
     say: >
       Before going further, please review and accept the Terms of Service and Privacy Policy.
@@ -51,8 +41,6 @@ conversation:
         route_to: "/documents/PyTune_Terms_of_Service.pdf"
       - suggest_action: "View Privacy Policy"
         route_to: "/documents/PyTune_Privacy_Policy_English.pdf"
-
-  # 3. Fallback final
   - else: true
     say: >
       Everything looks great, ${firstname}! 🎉  
@@ -63,31 +51,9 @@ conversation:
         suggest_action: "💾 Save Changes"
         params:
           auto: true
-
 metadata:
   version: "1.4"
   lang: en
   allow_interruptions: true
-  llm_backend: openai          # ✅ cloud
-  llm_model: gpt-4.1-nano   # ✅  plus puissant que gpt-3.5-turbo moins chère
-
-prompt_template: |
-  You are helping {{ firstname or "this user" }} complete their profile on PyTune.
-
-  They just said: "${raw_user_input}"
-
-  Current user data:
-  - Name: ${firstname}
-  - Email: ${email}
-  - City: ${user_profile.city}
-  - Country: ${user_profile.country}
-  - Phone: ${user_profile.phone_number}
-  - Accepted Terms: ${user_profile.terms_accepted}
-  - Accepted Privacy Policy: ${user_profile.privacy_accepted}
-  
-  Assume ${firstname} is a new user who just joined PyTune and needs friendly, simple guidance.
-
-  Reply in a concise, helpful and warm tone. 
-  You are a human-style assistant, not a chatbot.  
-  Focus only on what can really help now.
-
+  llm_backend: openai
+  llm_model: gpt-4.1-nano

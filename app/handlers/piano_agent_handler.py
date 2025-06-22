@@ -1,3 +1,4 @@
+from typing import Optional
 from uuid import UUID
 from fastapi import Request, HTTPException
 from pytune_auth_common.models.schema import UserOut
@@ -75,9 +76,18 @@ async def piano_agent_handler(agent_name: str, payload: dict, user: UserOut) -> 
 
     # 🗕️ Résolution de l'année — même si pas de numéro de série
     if manufacturer_id:
-        resolved = await resolve_age( manufacturer_id=manufacturer_id, serial_number=serial, brand_name=corrected or brand)
-        if resolved:
-            context_update["first_piano"].update(resolved)
+        year, confidence, source = await resolve_age(
+            manufacturer_id=manufacturer_id,
+            serial_number=serial,
+            brand_name=corrected or brand
+        )
+        
+        if year:
+            context_update["first_piano"].update({
+                "year_estimated": year,
+                "year_estimated_confidence": confidence,
+                "year_estimated_source": source
+            })
 
     response.context_update = context_update
 
@@ -99,21 +109,20 @@ async def piano_agent_handler(agent_name: str, payload: dict, user: UserOut) -> 
     return response
 
 
-async def piano_agent_start_handler(agent_name: str, extra_context: dict, user: UserOut) -> AgentResponse:
+async def piano_agent_start_handler(
+    agent_name: str,
+    extra_context: dict,
+    user: UserOut,
+    conversation_id: Optional[str] = None,
+) -> AgentResponse:
     context = await resolve_user_context(user, extra=extra_context)
     enriched_context = enrich_context(context)
 
     policy = load_yaml(agent_name)
-    use_memory = policy.get("metadata", {}).get("memory") is True
-
-    conversation_id = None
-    if use_memory:
-        conv = await create_conversation(user.id, topic=agent_name)
-        conversation_id = str(conv.id)
 
     response = await load_policy_and_resolve(agent_name, enriched_context)
 
-    # Traitement des marque + age ≈ comme dans handler
+    # Marque & datation
     context_update = response.context_update or {}
     first_piano = context_update.get("first_piano", {})
     brand = first_piano.get("brand")

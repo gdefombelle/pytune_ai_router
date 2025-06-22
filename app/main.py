@@ -137,9 +137,9 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         )
 
 # 📂 Fichiers statiques (optionnel si besoin)
-static_dir = Path(__file__).parent / "static"
-if static_dir.exists():
-    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+STATIC_DIR = Path(__file__).parent / "static"
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # ❤️ Healthcheck route
 @app.get("/")

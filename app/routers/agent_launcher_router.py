@@ -22,12 +22,6 @@ async def start_agent(
     extra_context: dict = Body(..., embed=True),
     user: UserOut = Depends(get_current_user),
 ):
-    if agent_name == "piano_agent":
-        return await piano_agent_start_handler(agent_name, extra_context, user)
-
-    full_context = await resolve_user_context(user, extra=extra_context)
-    enriched_context = enrich_context(full_context)
-
     policy = load_yaml(agent_name)
     use_memory = policy.get("metadata", {}).get("memory") is True
 
@@ -36,6 +30,14 @@ async def start_agent(
         from pytune_chat.store import create_conversation
         conv = await create_conversation(user.id, topic=agent_name)
         conversation_id = str(conv.id)
+
+    if agent_name == "piano_agent":
+        return await piano_agent_start_handler(
+            agent_name, extra_context, user, conversation_id
+        )
+
+    full_context = await resolve_user_context(user, extra=extra_context)
+    enriched_context = enrich_context(full_context)
 
     response = await load_policy_and_resolve(agent_name, enriched_context)
 

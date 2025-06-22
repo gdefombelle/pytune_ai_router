@@ -9,12 +9,14 @@ async def resolve_age(
     brand_name: Optional[str] = None,
     image_urls: Optional[List[str]] = None
 ) -> Tuple[Optional[int], int, str]:
-    if manufacturer_id and serial_number:
+    # Vérifie dans la base interne si le numéro est renseigné et non "Unknown", etc.
+    if manufacturer_id and serial_number and serial_number.lower() not in {"unknown", "not specified", "n/a", "none"}:
         info = await get_serial_number_info(manufacturer_id, serial_number)
         if info and info.get("year"):
             return info["year"], 100, "Found in internal serial number database."
 
-    if serial_number and brand_name:
+    # Sinon, estimation LLM textuelle
+    if serial_number and serial_number.lower() not in {"unknown", "not specified", "n/a", "none"} and brand_name:
         prompt = f"What is the approximate year of manufacture for a {brand_name} piano with serial number {serial_number}?"
         try:
             llm_answer = await ask_llm(user_input=prompt, context={}, prompt_template="$user_input")
@@ -24,6 +26,7 @@ async def resolve_age(
         except Exception as e:
             print(f"[LLM Age Lookup] Failed: {e}")
 
+    # Sinon, analyse image
     if image_urls and brand_name:
         vision_prompt = f"Based on these images and the brand {brand_name}, estimate the year the piano was manufactured. Respond with a single 4-digit year."
         try:
