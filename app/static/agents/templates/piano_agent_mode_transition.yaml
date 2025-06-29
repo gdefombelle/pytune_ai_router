@@ -1,0 +1,13 @@
+# Piano Agent - Identification → Conversation Mode
+mode_transition:
+  phase_1: "piano_identification"
+  triggers_transition_to_phase_2_if:
+    - first_piano.confirmed is true
+    - first_piano.brand is not null
+    - first_piano.category is not null
+    - first_piano.model or first_piano.size_cm or first_piano.type
+    - first_piano.serial_number or first_piano.year_estimated
+  phase_2: "piano_conversation"
+  prompt_used_in_phase_2: prompt_piano_agent_conversation.j2
+  memory_enabled: true
+  history_injected_as: chat_history[]

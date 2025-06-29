@@ -8,6 +8,8 @@ from app.core.policy_engine import evaluate_policy
 from app.models.policy_model import AgentResponse
 from app.core.paths import PROMPT_DIR, POLICY_DIR
 from pytune_llm.llm_connector import call_llm
+from pytune_chat.store import get_conversation_history
+from uuid import UUID
 
 # 🔧 Jinja2 environment
 jinja_env = Environment(loader=FileSystemLoader(PROMPT_DIR), autoescape=False)
@@ -35,6 +37,17 @@ def render_prompt_template(agent_name: str, context: dict) -> str:
 
 
 async def load_policy_and_resolve(agent_name: str, user_context: dict) -> AgentResponse:
+    chat_id = user_context.get("conversation_id")
+    raw_input = user_context.get("raw_user_input")
+    # 🔁 Si chat en cours + message texte, injecte l'historique
+    if chat_id and raw_input:
+        try:
+            chat_history = await get_conversation_history(UUID(chat_id))
+            if chat_history:
+                # Garde les 10 derniers max
+                user_context["chat_history"] = chat_history[-10:]
+        except Exception as e:
+            print("⚠️ Failed to load chat history:", e)
     policy_data = load_yaml(agent_name)
 
     # 1. Évaluation des règles conditionnelles

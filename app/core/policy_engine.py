@@ -32,6 +32,13 @@ async def evaluate_policy(policy_data: dict, user_context: UserContext) -> dict:
 
     flat_context = flatten_user_context(user_context)
     flat_context = deep_dotdict(flat_context)
+    # ✅ Appliquer les variables de policy
+    variables = policy.context.get("variables", {})
+    for var_name, expression in variables.items():
+        try:
+            flat_context[var_name] = eval(expression, {}, flat_context)
+        except Exception as e:
+            print(f"⚠️ Erreur d'évaluation de la variable {var_name}: {e}")
 
     pprint(flat_context.get("user_profile", {}))
 

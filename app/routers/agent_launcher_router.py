@@ -33,7 +33,7 @@ async def start_agent(
 
     if agent_name == "piano_agent":
         return await piano_agent_start_handler(
-            agent_name, extra_context, user, conversation_id
+             agent_name, extra_context, user, conversation_id
         )
 
     full_context = await resolve_user_context(user, extra=extra_context)
@@ -53,12 +53,29 @@ async def start_agent(
 @router.post("/{agent_name}/evaluate", response_model=AgentResponse)
 async def evaluate_agent(
     agent_name: str,
-    body: dict = Body(default={}),
+    request: Request,
     user: UserOut = Depends(get_current_user),
 ):
-    user_input = body.get("user_input", {})
-    full_context = await resolve_user_context(user, extra=user_input)
-    return await load_policy_and_resolve(agent_name, full_context)
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    extra_context = payload.get("extra_context", {})
+    conversation_id = payload.get("conversation_id")
+
+    # 🧠 On simule un message vide mais explicite
+    full_extra = {
+        **extra_context,
+        "user_input": "",
+        "raw_user_input": "",
+        "conversation_id": conversation_id,
+    }
+
+    context = await resolve_user_context(user, extra=full_extra)
+    enriched_context = enrich_context(context)
+    return await load_policy_and_resolve(agent_name, enriched_context)
+
 
 
 @router.post("/{agent_name}/message", response_model=AgentResponse)

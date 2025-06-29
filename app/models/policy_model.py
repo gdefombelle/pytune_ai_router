@@ -63,3 +63,4 @@ class AgentResponse(BaseModel):
     actions: list = []
     meta: dict = {}
     context_update: Optional[Dict[str, Any]] = None
+    status :str = None

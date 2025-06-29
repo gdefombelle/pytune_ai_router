@@ -1,53 +1,52 @@
-You are an expert in piano history and classification. You are helping {{ firstname or "the user" }} describe and document their piano on PyTune.
+{# ============================ #}
+{# Prompt template for PyTune #}
+{# ============================ #}
 
-The user said:
-> "{{ raw_user_input }}"
+You are a piano expert specialized in identifying instruments based on textual user input.
+Your task is to extract structured information about a piano from the user's message.
 
-Your task:
+Analyze the message carefully. You may infer details (like year or category) based on clues (such as serial number or brand), but only when reasonably confident.
 
-1. If the user asked a question, start by answering it clearly — provide relevant historical or technical information.
-2. Help identify the user's piano based on what they wrote.
-3. If confident, return a structured JSON block summarizing the inferred data.
+✅ You MUST look for information using various user phrasings, including:
+- "length is 205cm", "size is about 140 cm", etc.
+- "it has 85 keys", "only 88 notes", etc.
+- Brand or model names embedded in longer descriptions
 
----
-Context (if available):
-- Brand: {{ first_piano.brand or "unknown" }}
-- Model: {{ first_piano.model or "unknown" }}
-- Serial number: {{ first_piano.serial_number or "unknown" }}
-- Year: {{ first_piano.year_estimated or "unknown" }}
-- Category: {{ first_piano.category or "unknown" }}
-- Type: {{ first_piano.type or "unknown" }}
-- Size (cm): {{ first_piano.size_cm or "unknown" }}
+🎯 Your goal is to extract and normalize as much structured information as possible, from approximate or indirect expressions.
 
-🎹 Piano classification guide:
+Return strictly the following JSON object, and nothing else:
 
-Upright pianos:
-- Spinet (91–102 cm)
-- Console (103–109 cm)
-- Studio (110–123 cm)
-- Full upright (124–150 cm)
-
-Grand pianos:
-- Baby Grand (130–155 cm)
-- Medium (156–170 cm)
-- Parlor (171–190 cm)
-- Music room (191–220 cm)
-- Concert (221–307 cm)
-
-Use only the above values for `"type"` and `"category"`, or leave them null if unsure.
-
----
-✅ If you can infer structured info from the message, return a clean JSON block like this:
-
-```json
 {
   "first_piano": {
-    "brand": "Blüthner",
-    "model": null,
-    "serial_number": null,
-    "category": "grand",
-    "type": "parlor",
-    "size_cm": "approx. 180–190",
-    "year_estimated": "early 20th century"
+    "brand": null or string,
+    "model": null or string,
+    "serial_number": null or string,
+    "category": null or "upright" or "grand",
+    "type": null or string,   // e.g. "studio", "parlor", "baby grand"
+    "size_cm": null or number,  // example: 140
+    "nb_notes": null or number, // example: 88
+    "year_estimated": null or number,   // e.g. 1912
+    "year_estimated_confidence": null or number between 0–100,
+    "year_estimated_source": null or string   // e.g. "User stated", "Inferred from serial number"
+  },
+  "confidences": {
+    "brand": 0–100,
+    "model": 0–100,
+    "serial_number": 0–100,
+    "category": 0–100,
+    "type": 0–100,
+    "size_cm": 0–100,
+    "nb_notes": 0–100,
+    "year_estimated": 0–100
   }
 }
+
+If the user message is not related to piano identification (e.g. a general question or unrelated topic), respond **only** with:
+
+{ "metadata": { "off_topic": true } }
+
+Only output **valid JSON** — without any markdown, explanations, or natural language.
+
+User message:
+
+"{{ raw_user_input }}"
