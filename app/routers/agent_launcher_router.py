@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, Request, Body
 from app.core.policy_loader import load_policy_and_resolve, load_yaml
@@ -64,7 +65,31 @@ async def evaluate_agent(
     extra_context = payload.get("extra_context", {})
     conversation_id = payload.get("conversation_id")
 
-    # 🧠 On simule un message vide mais explicite
+    # 💡 Gère les trigger_event ici aussi (comme dans /message)
+    trigger = payload.get("trigger_event")
+    if trigger == "save_piano":
+        print("🧪 Simulating piano save (from /evaluate)...")
+        await asyncio.sleep(0.8)
+        return AgentResponse(
+            message="✅ Your piano has been successfully saved.",
+            actions=[
+                {
+                    "suggest_action": "Upload photos",
+                    "trigger_event": "trigger_upload"
+                },
+                {
+                    "suggest_action": "Skip this step",
+                    "trigger_event": "skip_upload"
+                }
+            ],
+            context_update={
+                "first_piano": {
+                    "confirmed": True
+                }
+            }
+        )
+
+    # 🧠 Sinon comportement standard
     full_extra = {
         **extra_context,
         "user_input": "",

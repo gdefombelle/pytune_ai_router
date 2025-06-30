@@ -1,4 +1,5 @@
 name: piano_agent
+
 description: >
   PyTune Piano Agent — guides the user in describing their piano and builds an emotional profile. Starts with a photo if possible.
 
@@ -18,6 +19,7 @@ context:
     has_basic_info: first_piano.brand and first_piano.model
     is_confirmed: first_piano.confirmed is True
     can_save: first_piano.brand and first_piano.category and (first_piano.size_cm or first_piano.model) and (first_piano.serial_number or first_piano.year_estimated)
+    show_serial_help: not first_piano or not first_piano.serial_number
 
 conversation:
   - if: raw_user_input
@@ -42,6 +44,7 @@ conversation:
         trigger_event: open_photo_guide
       - suggest_action: "Where is the serial number?"
         trigger_event: show_serial_help
+        if: show_serial_help
 
   - elif: first_piano.brand and not first_piano.category
     say: >
@@ -50,27 +53,22 @@ conversation:
 
   - elif: has_basic_info and not is_confirmed
     say: >
-      I understood your piano is a **${first_piano.brand} ${first_piano.model}**.  
+      I understood your piano is a **{{ first_piano.brand }} {{ first_piano.model }}**.  
       Do you confirm this information?
     actions:
       - suggest_action: "Yes, that’s correct"
-        route_to: "/pianos"
+        trigger_event: confirm_piano
       - suggest_action: "No, let me update it"
         route_to: "/pianos"
 
   - elif: first_piano and first_piano.category and first_piano.size_cm and not is_confirmed
     say: >
-      I’ve inferred some information about your piano using PyTune’s image recognition system. 🧠  
-      This feature is still experimental — please double-check the brand, type, and size, and confirm if correct.
-
-      If you find the serial number and it wasn’t detected yet, I can refine the year more precisely.
+      Does everything look correct? You can confirm the piano if the information seems accurate.
     actions:
       - suggest_action: "Confirm my piano"
-        route_to: "/pianos"
-      - suggest_action: "Where is the serial number?"
-        trigger_event: show_serial_help
+        trigger_event: confirm_piano
 
-  - elif:  not first_piano.model and not first_piano.size_cm
+  - elif: not first_piano.model and not first_piano.size_cm
     say: >
       Do you happen to know the model name or number?
     actions:
@@ -85,6 +83,7 @@ conversation:
         route_to: "/pianos"
       - suggest_action: "Where is the serial number?"
         trigger_event: show_serial_help
+        if: show_serial_help
 
   - elif: not first_piano.year_estimated
     say: >
@@ -92,6 +91,23 @@ conversation:
     actions:
       - suggest_action: "Estimate year"
         route_to: "/pianos/dating"
+
+  - elif: can_save and not is_confirmed
+    say: >
+      You’ve entered enough information to register your piano. Would you like to save it now?
+    actions:
+      - suggest_action: "Save my piano"
+        trigger_event: save_piano
+
+  - elif: is_confirmed
+    say: >
+      ✅ Your piano has been successfully saved.  
+      Would you like to upload photos of it (optional)?
+    actions:
+      - suggest_action: "Upload photos"
+        trigger_event: trigger_upload
+      - suggest_action: "Skip this step"
+        trigger_event: skip_upload
 
   - elif: not user_profile.music_start_age
     say: >
@@ -103,17 +119,10 @@ conversation:
       What kind of music do you enjoy playing? And how would you describe your level?
     actions: []
 
-  - elif: can_save and not is_confirmed
-    say: >
-      You’ve entered enough information to register your piano. Would you like to save it now?
-    actions:
-      - suggest_action: "Save my piano"
-        trigger_event: save_piano
-
   - else: true
     continue_if: first_piano.brand and first_piano.category and (first_piano.model or first_piano.size_cm)
     say: >
-      Thank you so much for sharing all this with me, ${firstname}!  
+      Thank you so much for sharing all this with me, {{ firstname }}!  
       You can now explore diagnosis, tutorials, or tuning options below.
     actions:
       - suggest_action: "Start diagnosis"
@@ -122,7 +131,7 @@ conversation:
         route_to: "/tuner"
 
 metadata:
-  version: "2.7"
+  version: "2.9"
   lang: en
   allow_interruptions: true
   llm_backend: openai
