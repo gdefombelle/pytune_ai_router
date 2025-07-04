@@ -1,18 +1,23 @@
 import asyncio
 from typing import Any, Dict
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request, Body
+from pytune_chat.store import get_conversation_history
 from app.core.policy_loader import load_policy_and_resolve, load_yaml
 from app.core.context_resolver import resolve_user_context
 from app.core.context_enrichment import enrich_context
 from pytune_auth_common.models.schema import UserOut
 from pytune_auth_common.services.auth_checks import get_current_user
 from app.models.policy_model import AgentResponse
+from pytune_chat.store import append_message
 
 # ✅ Handlers spécialisés
 from app.handlers.piano_agent_handler import (
     piano_agent_handler,
     piano_agent_start_handler
 )
+from app.utils.context_helpers import prepare_enriched_context
+from app.utils.piano_merge import merge_first_piano_data
 
 router = APIRouter(prefix="/ai/agents", tags=["AI Agents"])
 
@@ -32,15 +37,18 @@ async def start_agent(
         conv = await create_conversation(user.id, topic=agent_name)
         conversation_id = str(conv.id)
 
-    if agent_name == "piano_agent":
-        return await piano_agent_start_handler(
-             agent_name, extra_context, user, conversation_id
-        )
-
     full_context = await resolve_user_context(user, extra=extra_context)
     enriched_context = enrich_context(full_context)
 
     response = await load_policy_and_resolve(agent_name, enriched_context)
+
+    # ✅ Historiser le tout premier message assistant du YAML
+    if conversation_id and response.message:
+        from pytune_chat.store import append_message
+        try:
+            await append_message(UUID(conversation_id), "assistant", response.message)
+        except Exception as e:
+            print(f"⚠️ Failed to log initial assistant message: {e}")
 
     if conversation_id:
         response.meta = {
@@ -63,33 +71,21 @@ async def evaluate_agent(
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
     extra_context = payload.get("extra_context", {})
-    conversation_id = payload.get("conversation_id")
+    conversation_id = extra_context.get("conversation_id")
+    first_piano = extra_context.get("first_piano", {})
+    confirmed = first_piano.get("confirmed") is True
 
-    # 💡 Gère les trigger_event ici aussi (comme dans /message)
-    trigger = payload.get("trigger_event")
-    if trigger == "save_piano":
+    if confirmed:
         print("🧪 Simulating piano save (from /evaluate)...")
         await asyncio.sleep(0.8)
         return AgentResponse(
-            message="✅ Your piano has been successfully saved.",
-            actions=[
-                {
-                    "suggest_action": "Upload photos",
-                    "trigger_event": "trigger_upload"
-                },
-                {
-                    "suggest_action": "Skip this step",
-                    "trigger_event": "skip_upload"
-                }
-            ],
-            context_update={
-                "first_piano": {
-                    "confirmed": True
-                }
-            }
+            message="✅ Your piano has been successfully saved.\n"
+                    "Would you like to upload photos of it (optional)? Click ➕",
+            actions=[{"suggest_action": "Skip this step", "trigger_event": "skip_upload"}],
+            context_update={"first_piano": {"confirmed": True}}
         )
 
-    # 🧠 Sinon comportement standard
+    # 🔁 Construction enrichie du contexte complet
     full_extra = {
         **extra_context,
         "user_input": "",
@@ -99,9 +95,25 @@ async def evaluate_agent(
 
     context = await resolve_user_context(user, extra=full_extra)
     enriched_context = enrich_context(context)
-    return await load_policy_and_resolve(agent_name, enriched_context)
 
+    # ✅ Fusion non destructive des données snapshot
+    snapshot_fp = extra_context.get("agent_form_snapshot", {}).get("first_piano")
+    if snapshot_fp:
+        enriched_context["first_piano"] = merge_first_piano_data(
+            enriched_context.get("first_piano", {}),
+            snapshot_fp
+        )
 
+    response = await load_policy_and_resolve(agent_name, enriched_context)
+
+    if conversation_id and response.message:
+        try:
+            uuid_ = UUID(conversation_id)
+            await append_message(uuid_, "assistant", response.message)
+        except Exception as e:
+            print(f"⚠️ Failed to append assistant message from /evaluate: {e}")
+
+    return response
 
 @router.post("/{agent_name}/message", response_model=AgentResponse)
 async def agent_message(
@@ -109,24 +121,14 @@ async def agent_message(
     request: Request,
     user: UserOut = Depends(get_current_user),
 ):
-    try:
-        payload = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON payload")
-
-    if agent_name == "piano_agent":
-        return await piano_agent_handler(agent_name=agent_name, payload=payload, user=user)
-
-    # fallback générique
-    user_message = payload.get("message", "")
+    payload = await request.json()
+    message = payload.get("message", "")
     extra_context = payload.get("extra_context", {})
 
-    full_extra = {
-        **extra_context,
-        "user_input": user_message,
-        "raw_user_input": user_message
-    }
+    # 🧠 Centralise ici le contexte enrichi
+    context = await prepare_enriched_context(user, agent_name, message, extra_context)
 
-    context = await resolve_user_context(user, extra=full_extra)
-    enriched_context = enrich_context(context)
-    return await load_policy_and_resolve(agent_name, enriched_context)
+    if agent_name == "piano_agent":
+        return await piano_agent_handler(agent_name, message, context)
+
+    return await load_policy_and_resolve(agent_name, context)

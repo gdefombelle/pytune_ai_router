@@ -1,7 +1,6 @@
 name: piano_agent
-
 description: >
-  PyTune Piano Agent — guides the user in describing their piano and builds an emotional profile. Starts with a photo if possible.
+  PyTune Piano Agent — guides the user step-by-step to describe and save their piano. Then opens a musical conversation.
 
 triggers:
   - event: page_visit
@@ -15,97 +14,68 @@ context:
     - first_piano
   variables:
     first_piano: first_piano
-    no_piano: not first_piano or not first_piano.brand
-    has_basic_info: first_piano.brand and first_piano.model
+    no_brand: not first_piano or not first_piano.brand
+    no_category: first_piano.brand and not first_piano.category
+    no_model: first_piano.category and not first_piano.model and not first_piano.model_dont_know
+    no_size: (first_piano.model or first_piano.model_dont_know) and (not first_piano.size_cm or first_piano.size_cm == 0)
+    no_serial: not first_piano.serial_number and not first_piano.serial_dont_know
     is_confirmed: first_piano.confirmed is True
-    can_save: first_piano.brand and first_piano.category and (first_piano.size_cm or first_piano.model) and (first_piano.serial_number or first_piano.year_estimated)
+    can_save: first_piano.brand and first_piano.category and (first_piano.model or first_piano.size_cm > 0)
     show_serial_help: not first_piano or not first_piano.serial_number
+    hide_serial_help: first_piano and first_piano.serial_number
 
 conversation:
   - if: raw_user_input
     say: ${llm_response}
     actions: []
 
-  - elif: no_piano
+  - elif: no_brand
     say: >
-      You can type, speak using the 🎤 icon, upload photos, or fill in the form below to describe your piano.
-
-      For example:  
-      • **Blüthner upright**  
-      • **Yamaha C3**  
-      • **Upright 120cm**  
-      • or simply upload photos if unsure.
-    actions:
-      - trigger_event: set_placeholder
-        suggest_action: ""
-        params:
-          value: "Brand, type (upright/grand), model or size, serial number…"
-      - suggest_action: "Guided upload photos"
-        trigger_event: open_photo_guide
-      - suggest_action: "Where is the serial number?"
-        trigger_event: show_serial_help
-        if: show_serial_help
-
-  - elif: first_piano.brand and not first_piano.category
-    say: >
-      Great! What kind of piano is it — upright or grand?
+      Let's start with the brand. What brand is your piano?
     actions: []
 
-  - elif: has_basic_info and not is_confirmed
+  - elif: no_category
     say: >
-      I understood your piano is a **{{ first_piano.brand }} {{ first_piano.model }}**.  
-      Do you confirm this information?
-    actions:
-      - suggest_action: "Yes, that’s correct"
-        trigger_event: confirm_piano
-      - suggest_action: "No, let me update it"
-        route_to: "/pianos"
+      What type of piano is it — upright or grand?
+    actions: []
 
-  - elif: first_piano and first_piano.category and first_piano.size_cm and not is_confirmed
-    say: >
-      Does everything look correct? You can confirm the piano if the information seems accurate.
-    actions:
-      - suggest_action: "Confirm my piano"
-        trigger_event: confirm_piano
-
-  - elif: not first_piano.model and not first_piano.size_cm
+  - elif: no_model
     say: >
       Do you happen to know the model name or number?
     actions:
-      - suggest_action: "It’s a Grand piano, about 190cm"
-        trigger_event: fill_piano_size
+      - suggest_action: "I don’t know the model"
+        trigger_event: set_model_dont_know
 
-  - elif: not first_piano.serial_number
+  - elif: no_size
+    say: >
+      Do you know the piano's size? (For upright: height. For grand: length)
+    actions:
+      - suggest_action: "I don’t know the size"
+        trigger_event: set_size_dont_know
+
+  - elif: no_serial
     say: >
       If you have the serial number, I can estimate the year.
     actions:
       - suggest_action: "Add serial number"
         route_to: "/pianos"
+      - suggest_action: "I don’t know the serial number"
+        trigger_event: set_serial_dont_know
       - suggest_action: "Where is the serial number?"
         trigger_event: show_serial_help
         if: show_serial_help
 
-  - elif: not first_piano.year_estimated
-    say: >
-      If you’re not sure of the year, I can try to estimate it based on brand or serial number.
-    actions:
-      - suggest_action: "Estimate year"
-        route_to: "/pianos/dating"
-
   - elif: can_save and not is_confirmed
     say: >
-      You’ve entered enough information to register your piano. Would you like to save it now?
+      You've entered enough information to register your piano. Please confirm if correct.
     actions:
-      - suggest_action: "Save my piano"
-        trigger_event: save_piano
+      - suggest_action: "Confirm my piano"
+        trigger_event: confirm_piano
 
   - elif: is_confirmed
     say: >
-      ✅ Your piano has been successfully saved.  
-      Would you like to upload photos of it (optional)?
+      ✅ Your piano has been successfully saved. Would you like to upload photos of it (optional)? Click ➕
     actions:
-      - suggest_action: "Upload photos"
-        trigger_event: trigger_upload
       - suggest_action: "Skip this step"
         trigger_event: skip_upload
 
@@ -122,8 +92,7 @@ conversation:
   - else: true
     continue_if: first_piano.brand and first_piano.category and (first_piano.model or first_piano.size_cm)
     say: >
-      Thank you so much for sharing all this with me, {{ firstname }}!  
-      You can now explore diagnosis, tutorials, or tuning options below.
+      Thank you so much for sharing all this with me, ${firstname}! You can now explore diagnosis, tutorials, or tuning options below.
     actions:
       - suggest_action: "Start diagnosis"
         route_to: "/diagnosis"
@@ -131,7 +100,7 @@ conversation:
         route_to: "/tuner"
 
 metadata:
-  version: "2.9"
+  version: "3.0"
   lang: en
   allow_interruptions: true
   llm_backend: openai

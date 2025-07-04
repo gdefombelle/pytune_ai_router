@@ -28,6 +28,7 @@ def render_prompt_template(agent_name: str, context: dict) -> str:
     try:
         template = jinja_env.get_template(template_file)
         print("📦 Jinja context keys:", context.keys())
+        print("🧪 last_prompt =", context.get("last_prompt"))
         return template.render(context)
     except TemplateNotFound:
         raise FileNotFoundError(f"Prompt template not found for agent '{agent_name}' at {PROMPT_DIR}/{template_file}")

@@ -1,7 +1,10 @@
+from typing import Any, Dict
 from app.models.policy_model import Policy
 from pytune_data.models import UserContext
 from pydantic import ValidationError
 from pprint import pprint
+
+from app.utils.piano_merge import merge_first_piano_data
 
 
 class DotDict(dict):
@@ -18,21 +21,24 @@ def deep_dotdict(obj):
         return [deep_dotdict(v) for v in obj]
     return obj
 
-
-async def evaluate_policy(policy_data: dict, user_context: UserContext) -> dict:
-    """
-    Évalue la politique (policy YAML) en fonction du contexte utilisateur
-    et retourne la première réponse correspondant à une condition.
-    """
+async def evaluate_policy(policy_data: Dict[str, Any], user_context: Dict[str, Any]) -> Dict[str, Any]:
     try:
         policy = Policy(**policy_data)
     except ValidationError as e:
         print("❌ Erreur de validation du fichier policy YAML:", e)
         raise ValueError(f"Policy YAML structure invalid: {e}")
 
+    # ✅ Remplacement pur si snapshot fourni
+    try:
+        snapshot_fp = user_context.get("agent_form_snapshot", {}).get("first_piano")
+        if snapshot_fp:
+            user_context["first_piano"] = snapshot_fp
+    except Exception as e:
+        print(f"⚠️ Erreur lors du patch agent_form_snapshot.first_piano: {e}")
+
     flat_context = flatten_user_context(user_context)
     flat_context = deep_dotdict(flat_context)
-    # ✅ Appliquer les variables de policy
+
     variables = policy.context.get("variables", {})
     for var_name, expression in variables.items():
         try:
@@ -40,11 +46,8 @@ async def evaluate_policy(policy_data: dict, user_context: UserContext) -> dict:
         except Exception as e:
             print(f"⚠️ Erreur d'évaluation de la variable {var_name}: {e}")
 
-    pprint(flat_context.get("user_profile", {}))
-
     for step in policy.conversation:
         condition = step.if_ or step.elif_
-
         if condition:
             try:
                 match = bool(eval(condition, {}, flat_context))
@@ -52,11 +55,9 @@ async def evaluate_policy(policy_data: dict, user_context: UserContext) -> dict:
             except Exception as e:
                 print(f"❌ Erreur dans l'évaluation de la condition '{condition}': {e}")
                 match = False
-
             if match:
                 print(f"✅ Condition matchée: {condition}")
                 return format_response(step)
-
         elif step.else_:
             print("🛜 Aucun match avant, fallback sur else.")
             return format_response(step)
@@ -67,7 +68,6 @@ async def evaluate_policy(policy_data: dict, user_context: UserContext) -> dict:
         "actions": [],
         "meta": {}
     }
-
 
 def flatten_user_context(user_context: dict) -> dict:
     """

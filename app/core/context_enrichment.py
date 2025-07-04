@@ -1,5 +1,7 @@
 from typing import Dict, Any
 
+from pytune_data.piano_data_service import get_all_normalized_brands
+
 def enrich_context(context: Dict[str, Any]) -> Dict[str, Any]:
     snapshot = context.get("agent_form_snapshot", {})
     # 🔁 Si c’est un snapshot structuré comme dans le front (first_piano imbriqué)
@@ -20,4 +22,10 @@ def enrich_context(context: Dict[str, Any]) -> Dict[str, Any]:
 
     context["no_piano"] = not context["first_piano"]["brand"]
 
+    return context
+
+
+async def enrich_context_with_brands(context: dict) -> dict:
+    known_brands = await get_all_normalized_brands()
+    context["known_brands"] = known_brands
     return context

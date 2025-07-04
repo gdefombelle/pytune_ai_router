@@ -1,13 +1,15 @@
 import json
 from app.services.type_resolver import resolve_type
+
+
 def extract_structured_piano_data(text: str) -> dict:
     """
-    Tente de parser `text` comme JSON et d'extraire le bloc `first_piano` s’il existe.
+    Tente de parser `text` comme JSON et retourne le dictionnaire complet s’il est bien formé.
     """
     try:
         data = json.loads(text)
         if isinstance(data, dict) and "first_piano" in data:
-            return data["first_piano"]
+            return data  # 🔁 On retourne TOUT (first_piano, confidences, metadata, ...)
     except json.JSONDecodeError as e:
         print("❌ JSON decode error:", e)
 
@@ -18,12 +20,22 @@ def make_readable_message_from_extraction(
     brand_resolution: dict | None = None
 ) -> str:
     """
-    Construit un message lisible à partir des données extraites par le LLM, avec explication des inférences.
+    Construit un message lisible à partir des données extraites par le LLM,
+    avec explication des champs reconnus ou des réponses implicites.
     """
     fp = extracted.get("first_piano", {}) or {}
+    metadata = extracted.get("metadata", {}) or {}
     corrections = []
 
-    # ✅ Marque (corrigée si applicable)
+    # 🧠 Cas spéciaux : user a dit "I don't know"
+    if metadata.get("acknowledged") == "model_dont_know":
+        return "✅ Got it — you don’t know the model, we can skip it for now."
+    elif metadata.get("acknowledged") == "serial_dont_know":
+        return "✅ No problem — we’ll continue without the serial number."
+    elif metadata.get("acknowledged") == "size_dont_know":
+        return "✅ That’s okay — we’ll proceed even without the piano’s size."
+
+    # ✅ Marque
     if brand_resolution:
         matched = brand_resolution.get("matched_name")
         original = fp.get("brand")
@@ -57,15 +69,13 @@ def make_readable_message_from_extraction(
     if fp.get("category"):
         corrections.append(f'Category: {fp["category"]}')
 
-    # 🧩 Type : inféré si nécessaire
-    piano_type = fp.get("type")
-    inferred_type = None
-    if not piano_type and fp.get("category") and fp.get("size_cm"):
-        inferred_type = resolve_type(fp["category"], fp["size_cm"])
-        if inferred_type:
-            corrections.append(f'Type: {inferred_type} (inferred from size and category)')
-    elif piano_type:
-        corrections.append(f'Type: {piano_type}')
+    # 🧩 Type
+    if fp.get("type"):
+        corrections.append(f'Type: {fp["type"]}')
+    elif fp.get("category") and fp.get("size_cm"):
+        inferred = resolve_type(fp["category"], fp["size_cm"])
+        if inferred:
+            corrections.append(f'Type: {inferred} (inferred from size and category)')
 
     # 💬 Finalisation
     if corrections:
@@ -74,5 +84,5 @@ def make_readable_message_from_extraction(
             + "\n".join(f"- {line}" for line in corrections)
             + "\n\nLet me know if anything needs to be adjusted or corrected!"
         )
-    else:
-        return "I’ve analyzed your message but couldn’t extract any structured information yet."
+
+    return "I’ve analyzed your message but couldn’t extract any structured information yet."
