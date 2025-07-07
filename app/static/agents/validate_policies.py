@@ -102,20 +102,46 @@ def validate_prompt_exists(agent_name: str, prompt_dir: Path) -> bool:
     return True
 
 def validate_policy_file(filepath: Path, prompt_dir: Path) -> bool:
+    from app.models.policy_model import Policy  # ou autre chemin si déplacé
     ok = True
     try:
         data = yaml.safe_load(filepath.read_text(encoding="utf-8"))
         policy = Policy(**data)
         agent_name = filepath.stem
+
         if not validate_prompt_exists(agent_name, prompt_dir):
             ok = False
+
         validate_policy_variables(policy, filepath.name)
         validate_conversation_conditions(policy, filepath.name)
+
+        # ✅ [NOUVEAU] — Validation optionnelle du bloc "start"
+        start = data.get("start")
+        if start:
+            if "say" not in start or not isinstance(start["say"], str):
+                print(f"   ❌ {filepath.name} — invalid `start.say`: must be a string")
+                ok = False
+
+            if "actions" in start and not isinstance(start["actions"], list):
+                print(f"   ❌ {filepath.name} — `start.actions` must be a list")
+                ok = False
+
+            for action in start.get("actions", []):
+                if not isinstance(action, dict):
+                    print(f"   ❌ {filepath.name} — `start.actions` contains non-dict")
+                    ok = False
+                elif "trigger_event" not in action and "route_to" not in action:
+                    print(f"   ❌ {filepath.name} — action in `start.actions` missing `trigger_event` or `route_to`")
+                    ok = False
+
         print(f"   ✅ {filepath.name} is valid ✓")
+
     except (ValidationError, yaml.YAMLError) as e:
         print(f"   ❌ {filepath.name} invalid:\n{e}")
         ok = False
+
     return ok
+
 
 def validate_all_policies(template_dir: Path, prompt_dir: Path) -> None:
     print(f"🔍 Validating YAML policies in: {template_dir}")

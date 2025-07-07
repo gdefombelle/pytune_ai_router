@@ -11,6 +11,8 @@ from pytune_llm.llm_connector import call_llm
 from pytune_chat.store import get_conversation_history
 from uuid import UUID
 
+from app.utils.templates import interpolate_yaml
+
 # 🔧 Jinja2 environment
 jinja_env = Environment(loader=FileSystemLoader(PROMPT_DIR), autoescape=False)
 
@@ -40,16 +42,27 @@ def render_prompt_template(agent_name: str, context: dict) -> str:
 async def load_policy_and_resolve(agent_name: str, user_context: dict) -> AgentResponse:
     chat_id = user_context.get("conversation_id")
     raw_input = user_context.get("raw_user_input")
+
+    policy_data = load_yaml(agent_name)
+
+    # ✅ [NOUVEAU] Si aucun input utilisateur et bloc start présent : on démarre par là
+    already_started = user_context.get("has_started") is True
+    if not raw_input and not already_started and "start" in policy_data:
+        block = policy_data["start"]
+        return AgentResponse(
+            message=interpolate_yaml(block.get("say", ""), user_context),
+            actions=block.get("actions", []),
+            context_update={"has_started": True},
+        )
+
     # 🔁 Si chat en cours + message texte, injecte l'historique
     if chat_id and raw_input:
         try:
             chat_history = await get_conversation_history(UUID(chat_id))
             if chat_history:
-                # Garde les 10 derniers max
                 user_context["chat_history"] = chat_history[-10:]
         except Exception as e:
             print("⚠️ Failed to load chat history:", e)
-    policy_data = load_yaml(agent_name)
 
     # 1. Évaluation des règles conditionnelles
     evaluated_response = await evaluate_policy(policy_data, user_context)
@@ -65,7 +78,7 @@ async def load_policy_and_resolve(agent_name: str, user_context: dict) -> AgentR
         )
         message = message.replace("${llm_response}", llm_response)
 
-    # 3. Si pas de message (et aucune règle ne match), fallback LLM complet
+    # 3. Fallback LLM complet si aucune règle n'a matché
     if not message.strip():
         try:
             prompt = render_prompt_template(agent_name, user_context)
@@ -77,7 +90,7 @@ async def load_policy_and_resolve(agent_name: str, user_context: dict) -> AgentR
         except FileNotFoundError:
             message = "🤖 I’m here, but no rule matched and no prompt was found."
 
-    # 4. Extraction éventuelle de JSON structuré depuis message
+    # 4. Extraction éventuelle de JSON structuré
     context_update = {}
     try:
         match = re.search(r"```json\s*({[\s\S]+?})\s*```", message)

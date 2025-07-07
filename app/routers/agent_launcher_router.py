@@ -21,7 +21,6 @@ from app.utils.piano_merge import merge_first_piano_data
 
 router = APIRouter(prefix="/ai/agents", tags=["AI Agents"])
 
-
 @router.post("/{agent_name}/start", response_model=AgentResponse)
 async def start_agent(
     agent_name: str,
@@ -31,18 +30,25 @@ async def start_agent(
     policy = load_yaml(agent_name)
     use_memory = policy.get("metadata", {}).get("memory") is True
 
+    # 🧠 Si mémoire activée, créer une conversation
     conversation_id = None
     if use_memory:
         from pytune_chat.store import create_conversation
         conv = await create_conversation(user.id, topic=agent_name)
         conversation_id = str(conv.id)
 
+    # 🔧 Résolution du contexte utilisateur enrichi
     full_context = await resolve_user_context(user, extra=extra_context)
     enriched_context = enrich_context(full_context)
 
+    # 🧠 Injecter le conversation_id si présent
+    if conversation_id:
+        enriched_context["conversation_id"] = conversation_id
+
+    # 🚀 Appelle le moteur de policy (avec bloc start si applicable)
     response = await load_policy_and_resolve(agent_name, enriched_context)
 
-    # ✅ Historiser le tout premier message assistant du YAML
+    # 📝 Historise le message initial assistant si applicable
     if conversation_id and response.message:
         from pytune_chat.store import append_message
         try:
@@ -50,6 +56,7 @@ async def start_agent(
         except Exception as e:
             print(f"⚠️ Failed to log initial assistant message: {e}")
 
+    # 📦 Retourne la conversation_id au client
     if conversation_id:
         response.meta = {
             **response.meta,
@@ -129,6 +136,7 @@ async def agent_message(
     context = await prepare_enriched_context(user, agent_name, message, extra_context)
 
     if agent_name == "piano_agent":
-        return await piano_agent_handler(agent_name, message, context)
+        ret = await piano_agent_handler(agent_name, message, context)
+        return ret
 
     return await load_policy_and_resolve(agent_name, context)

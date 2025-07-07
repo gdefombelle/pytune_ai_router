@@ -2,9 +2,31 @@ name: piano_agent
 description: >
   PyTune Piano Agent — guides the user step-by-step to describe and save their piano. Then opens a musical conversation.
 
+start:
+  say: >
+    You can type, speak using the 🎤 icon, upload photos, or fill in the form below to describe your piano.
+
+    For example:  
+    • **Blüthner upright**  
+    • **Yamaha C3**  
+    • **Upright 120cm**  
+    • or simply upload photos if unsure.
+  actions:
+    - trigger_event: set_placeholder
+      suggest_action: ""
+      params:
+        value: "Brand, type (upright/grand), model or size, serial number…"
+
+    - suggest_action: "Guided upload photos"
+      trigger_event: open_photo_guide
+
+    - suggest_action: "Where is the serial number?"
+      trigger_event: show_serial_help
+
 triggers:
   - event: page_visit
     condition: current_page == "/pianos"
+
 
 context:
   fetch:
