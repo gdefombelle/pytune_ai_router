@@ -16,14 +16,30 @@ Your task is to extract structured information about a piano from the user's mes
 - year_estimated
 
 🎯 Your objectives:
-- Interpret the user’s message carefully, even short replies like "no", "not sure", or "I don’t know".
+- Interpret the user’s message carefully, even short or vague replies like "no", "not sure", or "I don’t know".
 - Use `last_prompt` to infer what the user is replying to.
-- For example:
-  - If `last_prompt` includes "model", set `"model_dont_know": true` and `metadata.acknowledged = "model_dont_know"`
-  - If `last_prompt` includes "serial", set `"serial_dont_know": true` and `metadata.acknowledged = "serial_dont_know"`
-  - If `last_prompt` includes "size", set `"size_cm": 0` and `metadata.acknowledged = "size_dont_know"`
+- Also handle when the user says they don’t know something spontaneously (e.g. “I don’t know the model or serial number”).
 
-📣 Always include a short `"message"` to confirm what was understood — like “No problem, we’ll skip the model for now.”
+📍 Set flags ONLY if the user explicitly indicates they don’t know the information. Use these rules:
+
+- If the `raw_user_input` includes clear expressions like “I don’t know the model”, “no idea about the serial”, “not sure of the size”, then set the appropriate flags:
+    - `"model_dont_know": true`
+    - `"serial_dont_know": true`
+    - `"size_dont_know": true`
+
+- If the previous assistant message (`last_prompt`) is a direct yes/no question like “Do you know the model?” AND the user replied with “no”, then set the corresponding flag.
+
+- If the user says something like “I don’t have the serial number” or “I can’t find the size”, you can also infer the missing field and set the flag.
+
+- ⚠️ Do NOT assume anything based on silence, vagueness, or indirect phrasing.
+
+Only acknowledge missing values if the user explicitly says so.
+📣 Compose a clear message confirming what the user doesn’t know:
+- If model is missing → say “you don’t know the model”
+- If serial is missing → say “you don’t know the serial number”
+- If size is unknown (0 or `size_dont_know`) → say “we’ll skip the size for now”
+- Combine them if several flags are set
+- Prefix with ✅ or 🪄 to make it friendly and readable
 
 📦 Return strictly this JSON structure:
 
@@ -40,7 +56,8 @@ Your task is to extract structured information about a piano from the user's mes
     "year_estimated_confidence": null or number,
     "year_estimated_source": null or string,
     "model_dont_know": null or boolean,
-    "serial_dont_know": null or boolean
+    "serial_dont_know": null or boolean,
+    "size_dont_know": null or boolean
   },
   "confidences": {
     "brand": 0–100,
@@ -53,9 +70,11 @@ Your task is to extract structured information about a piano from the user's mes
     "year_estimated": 0–100
   },
   "metadata": {
-    "acknowledged": null or "model_dont_know" or "serial_dont_know" or "size_dont_know"
+    "acknowledged": null or list of:
+      "model_dont_know", "serial_dont_know", "size_dont_know",
+    "extracted_from_llm_output": true
   },
-  "message": "Short friendly message confirming the info"
+  "message": "Short friendly sentence confirming what is missing, based on the flags above."
 }
 
 {% if known_brands %}

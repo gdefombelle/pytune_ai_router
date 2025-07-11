@@ -1,5 +1,6 @@
 import json
 from app.services.type_resolver import resolve_type
+from app.utils.dontknow_utils import humanize_dont_know_list
 
 
 def extract_structured_piano_data(text: str) -> dict:
@@ -27,13 +28,12 @@ def make_readable_message_from_extraction(
     metadata = extracted.get("metadata", {}) or {}
     corrections = []
 
-    # 🧠 Cas spéciaux : user a dit "I don't know"
-    if metadata.get("acknowledged") == "model_dont_know":
-        return "✅ Got it — you don’t know the model, we can skip it for now."
-    elif metadata.get("acknowledged") == "serial_dont_know":
-        return "✅ No problem — we’ll continue without the serial number."
-    elif metadata.get("acknowledged") == "size_dont_know":
-        return "✅ That’s okay — we’ll proceed even without the piano’s size."
+    acknowledged = metadata.get("acknowledged")
+    if acknowledged:
+        flags = acknowledged if isinstance(acknowledged, list) else [acknowledged]
+        readable = humanize_dont_know_list(flags)
+        if readable:
+            return f"✅ Got it — {readable}, we can skip it for now."
 
     # ✅ Marque
     if brand_resolution:

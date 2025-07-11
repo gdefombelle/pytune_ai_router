@@ -38,22 +38,34 @@ def render_prompt_template(agent_name: str, context: dict) -> str:
         print(f"⚠️ Jinja2 rendering error for '{agent_name}':", str(e))
         raise
 
+async def start_policy(agent_name: str, context: dict) -> AgentResponse:
+    """
+    Initialise un agent :
+    - en utilisant le bloc `start` du YAML s’il existe ;
+    - sinon, en appelant `load_policy_and_resolve(...)` avec `raw_user_input = ""`.
+    """
+    policy = load_yaml(agent_name)
+    start_block = policy.get("start")
+
+    if start_block:
+        message = interpolate_yaml(start_block.get("say", ""), context)
+        actions = start_block.get("actions", [])
+
+        return AgentResponse(
+            message=message,
+            actions=actions,
+            context_update=None  # ou {"init": True} si besoin
+        )
+
+    # 🔁 Pas de bloc start → on déclenche la conversation via la logique normale
+    context["raw_user_input"] = ""
+    return await load_policy_and_resolve(agent_name, context)
 
 async def load_policy_and_resolve(agent_name: str, user_context: dict) -> AgentResponse:
     chat_id = user_context.get("conversation_id")
     raw_input = user_context.get("raw_user_input")
 
     policy_data = load_yaml(agent_name)
-
-    # ✅ [NOUVEAU] Si aucun input utilisateur et bloc start présent : on démarre par là
-    already_started = user_context.get("has_started") is True
-    if not raw_input and not already_started and "start" in policy_data:
-        block = policy_data["start"]
-        return AgentResponse(
-            message=interpolate_yaml(block.get("say", ""), user_context),
-            actions=block.get("actions", []),
-            context_update={"has_started": True},
-        )
 
     # 🔁 Si chat en cours + message texte, injecte l'historique
     if chat_id and raw_input:

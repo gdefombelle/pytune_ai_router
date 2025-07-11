@@ -28,17 +28,19 @@ async def evaluate_policy(policy_data: Dict[str, Any], user_context: Dict[str, A
         print("❌ Erreur de validation du fichier policy YAML:", e)
         raise ValueError(f"Policy YAML structure invalid: {e}")
 
-    # ✅ Remplacement pur si snapshot fourni
+    # ✅ Injection dynamique du snapshot de formulaire (form_context_key)
     try:
-        snapshot_fp = user_context.get("agent_form_snapshot", {}).get("first_piano")
-        if snapshot_fp:
-            user_context["first_piano"] = snapshot_fp
+        form_key = policy.metadata.form_context_key
+        snapshot = user_context.get("agent_form_snapshot", {})
+        if form_key and form_key in snapshot:
+            user_context[form_key] = snapshot[form_key]
     except Exception as e:
-        print(f"⚠️ Erreur lors du patch agent_form_snapshot.first_piano: {e}")
+        print(f"⚠️ Erreur lors du patch contextuel avec form_context_key: {e}")
 
     flat_context = flatten_user_context(user_context)
     flat_context = deep_dotdict(flat_context)
 
+    # ✅ Variables dynamiques
     variables = policy.context.get("variables", {})
     for var_name, expression in variables.items():
         try:
@@ -46,6 +48,7 @@ async def evaluate_policy(policy_data: Dict[str, Any], user_context: Dict[str, A
         except Exception as e:
             print(f"⚠️ Erreur d'évaluation de la variable {var_name}: {e}")
 
+    # ✅ Évaluation du scénario
     for step in policy.conversation:
         condition = step.if_ or step.elif_
         if condition:

@@ -47,6 +47,12 @@ class Metadata(BaseModel):
     version: str
     lang: str
     allow_interruptions: bool = True
+    title: Optional[str] = None
+    llm_model: Optional[str] = None
+    llm_backend: Optional[str] = None
+    memory: Optional[bool] = None
+    form_context_key: Optional[str] = None
+
 
 
 class Policy(BaseModel):

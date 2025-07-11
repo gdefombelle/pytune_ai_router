@@ -3,7 +3,7 @@ from typing import Any, Dict
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request, Body
 from pytune_chat.store import get_conversation_history
-from app.core.policy_loader import load_policy_and_resolve, load_yaml
+from app.core.policy_loader import load_policy_and_resolve, load_yaml, start_policy
 from app.core.context_resolver import resolve_user_context
 from app.core.context_enrichment import enrich_context
 from pytune_auth_common.models.schema import UserOut
@@ -30,25 +30,33 @@ async def start_agent(
     policy = load_yaml(agent_name)
     use_memory = policy.get("metadata", {}).get("memory") is True
 
-    # 🧠 Si mémoire activée, créer une conversation
+    # 🧠 Crée une conversation si mémoire activée
     conversation_id = None
     if use_memory:
         from pytune_chat.store import create_conversation
         conv = await create_conversation(user.id, topic=agent_name)
         conversation_id = str(conv.id)
 
-    # 🔧 Résolution du contexte utilisateur enrichi
+    # 🔧 Résout et enrichit le contexte utilisateur
     full_context = await resolve_user_context(user, extra=extra_context)
     enriched_context = enrich_context(full_context)
 
-    # 🧠 Injecter le conversation_id si présent
+    # Injecte le conversation_id si applicable
     if conversation_id:
         enriched_context["conversation_id"] = conversation_id
 
-    # 🚀 Appelle le moteur de policy (avec bloc start si applicable)
-    response = await load_policy_and_resolve(agent_name, enriched_context)
+    # ✅ Appelle le bloc `start` ou fallback vers policy loader
+    response = await start_policy(agent_name, enriched_context)
 
-    # 📝 Historise le message initial assistant si applicable
+    # 🏷️ Injecte le titre du YAML si présent
+    title = policy.get("metadata", {}).get("title")
+    if title:
+        response.meta = {
+            **response.meta,
+            "title": title
+        }
+
+    # 🧠 Historise le message assistant s’il y en a un
     if conversation_id and response.message:
         from pytune_chat.store import append_message
         try:
@@ -56,7 +64,7 @@ async def start_agent(
         except Exception as e:
             print(f"⚠️ Failed to log initial assistant message: {e}")
 
-    # 📦 Retourne la conversation_id au client
+    # 🔁 Retourne conversation_id dans la meta si présent
     if conversation_id:
         response.meta = {
             **response.meta,
@@ -64,7 +72,6 @@ async def start_agent(
         }
 
     return response
-
 
 @router.post("/{agent_name}/evaluate", response_model=AgentResponse)
 async def evaluate_agent(
@@ -79,40 +86,31 @@ async def evaluate_agent(
 
     extra_context = payload.get("extra_context", {})
     conversation_id = extra_context.get("conversation_id")
-    first_piano = extra_context.get("first_piano", {})
-    confirmed = first_piano.get("confirmed") is True
 
-    if confirmed:
-        print("🧪 Simulating piano save (from /evaluate)...")
-        await asyncio.sleep(0.8)
-        return AgentResponse(
-            message="✅ Your piano has been successfully saved.\n"
-                    "Would you like to upload photos of it (optional)? Click ➕",
-            actions=[{"suggest_action": "Skip this step", "trigger_event": "skip_upload"}],
-            context_update={"first_piano": {"confirmed": True}}
-        )
-
-    # 🔁 Construction enrichie du contexte complet
-    full_extra = {
+    # 🔧 Construit le contexte de base (utilisateur + extra)
+    base_context = {
         **extra_context,
         "user_input": "",
         "raw_user_input": "",
         "conversation_id": conversation_id,
     }
 
-    context = await resolve_user_context(user, extra=full_extra)
+    context = await resolve_user_context(user, extra=base_context)
     enriched_context = enrich_context(context)
 
-    # ✅ Fusion non destructive des données snapshot
-    snapshot_fp = extra_context.get("agent_form_snapshot", {}).get("first_piano")
-    if snapshot_fp:
-        enriched_context["first_piano"] = merge_first_piano_data(
-            enriched_context.get("first_piano", {}),
-            snapshot_fp
-        )
+    # ✅ Fusionne tous les blocs de snapshot (agnostique)
+    snapshot = extra_context.get("agent_form_snapshot")
+    if snapshot:
+        for key, value in snapshot.items():
+            enriched_context[key] = {
+                **enriched_context.get(key, {}),
+                **value,
+            }
 
+    # 🤖 Exécution de la policy
     response = await load_policy_and_resolve(agent_name, enriched_context)
 
+    # 💾 Historisation mémoire (si message assistant et conversation active)
     if conversation_id and response.message:
         try:
             uuid_ = UUID(conversation_id)
@@ -121,6 +119,8 @@ async def evaluate_agent(
             print(f"⚠️ Failed to append assistant message from /evaluate: {e}")
 
     return response
+
+
 
 @router.post("/{agent_name}/message", response_model=AgentResponse)
 async def agent_message(

@@ -26,7 +26,16 @@ def resolve_type(category: Optional[str], size_cm: Optional[float]) -> Optional[
     if not category or not size_cm:
         return None
 
-    for type_name, min_cm, max_cm in PIANO_TYPE_RANGES.get(category.lower(), []):
+    # 🔧 Convertit automatiquement les entiers en string
+    category_map = {
+        1: "grand",
+        2: "upright",
+        "1": "grand",
+        "2": "upright"
+    }
+    category = category_map.get(category, str(category).lower())
+
+    for type_name, min_cm, max_cm in PIANO_TYPE_RANGES.get(category, []):
         if min_cm <= size_cm <= max_cm:
             return type_name
 
