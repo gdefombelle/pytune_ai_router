@@ -18,6 +18,7 @@ from app.handlers.piano_agent_handler import (
 )
 from app.utils.context_helpers import prepare_enriched_context
 from app.utils.piano_merge import merge_first_piano_data
+from app.utils.dontknow_utils import humanize_dont_know_list, inject_dont_know_message_if_needed
 
 router = APIRouter(prefix="/ai/agents", tags=["AI Agents"])
 
@@ -107,6 +108,12 @@ async def evaluate_agent(
                 **value,
             }
 
+        # 🔁 Injecte les dont_know_flags dans first_piano (pour matcher le YAML)
+        if "dont_know_flags" in snapshot and "first_piano" in enriched_context:
+            for k, v in snapshot["dont_know_flags"].items():
+                if k not in enriched_context["first_piano"]:
+                    enriched_context["first_piano"][k] = v
+
     # 🤖 Exécution de la policy
     response = await load_policy_and_resolve(agent_name, enriched_context)
 
@@ -119,7 +126,6 @@ async def evaluate_agent(
             print(f"⚠️ Failed to append assistant message from /evaluate: {e}")
 
     return response
-
 
 
 @router.post("/{agent_name}/message", response_model=AgentResponse)
@@ -140,3 +146,38 @@ async def agent_message(
         return ret
 
     return await load_policy_and_resolve(agent_name, context)
+
+@router.post("/{agent_name}/flags", response_model=AgentResponse)
+async def submit_flags(
+    agent_name: str,
+    request: Request,
+    user: UserOut = Depends(get_current_user),
+):
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    flags = payload.get("flags", {})
+    conversation_id = payload.get("conversation_id")
+    readable = humanize_dont_know_list([k for k, v in flags.items() if v])
+
+    msg = f"✅ Got it — {readable}, we can skip it for now." if readable else ""
+
+    if conversation_id and msg:
+        try:
+            uuid_ = UUID(conversation_id)
+            await append_message(uuid_, "assistant", msg)
+        except Exception as e:
+            print(f"⚠️ Failed to append assistant message from /flags: {e}")
+
+    # ✅ Envoie uniquement les flags, laisse le frontend fusionner
+    return AgentResponse(
+        message=msg,
+        context_update={
+            "agent_form_snapshot": {
+                "dont_know_flags": {**flags}
+            }
+        }
+    )
+

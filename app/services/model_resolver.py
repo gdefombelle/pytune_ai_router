@@ -17,6 +17,9 @@ async def resolve_model_name(model_name: str, manufacturer_id: int) -> Dict:
 
     if result:
         top = result[0]
+        CATEGORY_MAP = {1: "grand", 2: "upright", "1": "grand", "2": "upright"}
+        if "kind" in top:
+            top["kind"] = CATEGORY_MAP.get(top["kind"], top["kind"])
         return {
             "status": "found",
             "source": "database",

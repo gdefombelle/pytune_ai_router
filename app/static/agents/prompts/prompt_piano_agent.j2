@@ -20,26 +20,26 @@ Your task is to extract structured information about a piano from the user's mes
 - Use `last_prompt` to infer what the user is replying to.
 - Also handle when the user says they don’t know something spontaneously (e.g. “I don’t know the model or serial number”).
 
-📍 Set flags ONLY if the user explicitly indicates they don’t know the information. Use these rules:
+📍 Set flags ONLY if the user explicitly indicates they don’t know something.
+You MUST NOT guess or infer missing knowledge based on null values.
 
-- If the `raw_user_input` includes clear expressions like “I don’t know the model”, “no idea about the serial”, “not sure of the size”, then set the appropriate flags:
-    - `"model_dont_know": true`
-    - `"serial_dont_know": true`
-    - `"size_dont_know": true`
+Set the following flags only under these strict conditions:
 
-- If the previous assistant message (`last_prompt`) is a direct yes/no question like “Do you know the model?” AND the user replied with “no”, then set the corresponding flag.
+- "model_dont_know": true → only if:
+  - `raw_user_input` includes clear phrases like "I don’t know the model", or
+  - the previous assistant question (`last_prompt`) was about the model AND the user replied "no"
 
-- If the user says something like “I don’t have the serial number” or “I can’t find the size”, you can also infer the missing field and set the flag.
+- "serial_dont_know": true → only if:
+  - `raw_user_input` includes phrases like "I don’t have the serial number", or
+  - the previous question was "Do you know the serial number?" AND the user said "no"
 
-- ⚠️ Do NOT assume anything based on silence, vagueness, or indirect phrasing.
+- "size_dont_know": true → only if:
+  - the user explicitly says "I don’t know the size", "not sure about the height", etc.
+  - or answered "no" to a previous question about the size
 
-Only acknowledge missing values if the user explicitly says so.
-📣 Compose a clear message confirming what the user doesn’t know:
-- If model is missing → say “you don’t know the model”
-- If serial is missing → say “you don’t know the serial number”
-- If size is unknown (0 or `size_dont_know`) → say “we’ll skip the size for now”
-- Combine them if several flags are set
-- Prefix with ✅ or 🪄 to make it friendly and readable
+Never deduce these flags just because fields are null or empty.
+Only set them when the user explicitly communicates the lack of knowledge.
+
 
 📦 Return strictly this JSON structure:
 

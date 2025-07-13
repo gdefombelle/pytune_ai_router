@@ -11,12 +11,18 @@ from pytune_chat.orchestrator import run_chat_turn
 from pytune_chat.store import append_message, create_conversation, get_conversation_history
 from app.services.brand_resolver import resolve_brand_name
 from app.services.age_resolver import resolve_age
-from app.utils.piano_extract import extract_structured_piano_data, make_readable_message_from_extraction
+from app.services.piano_extract import extract_structured_piano_data, make_readable_message_from_extraction
 from app.services.type_resolver import resolve_type
 from app.utils.piano_merge import merge_first_piano_data
 from app.core.context_enrichment import enrich_context_with_brands
-from app.utils.dontknow_utils import humanize_dont_know_list
+from app.utils.dontknow_utils import humanize_dont_know_list, clean_dont_know_flags
 from app.services.model_resolver import resolve_model_name
+from app.services.piano_logic import (
+    resolve_model_fields,
+    resolve_brand_fields,
+    resolve_serial_year,
+    finalize_response_message
+)
 
 def is_identification_complete(first_piano: dict) -> bool:
     return (
@@ -28,6 +34,8 @@ def is_identification_complete(first_piano: dict) -> bool:
     )
 
 async def piano_agent_handler(agent_name: str, user_message: str, context: dict) -> AgentResponse:
+
+
     conversation_id_str = context.get("conversation_id")
     first_piano = context.get("first_piano", {})
 
@@ -87,7 +95,6 @@ async def piano_agent_handler(agent_name: str, user_message: str, context: dict)
                         "extracted_from_llm_output": True
                     }
                 }
-
         except Exception as e:
             print("⚠️ Failed to extract structured piano data:", e)
 
@@ -96,7 +103,12 @@ async def piano_agent_handler(agent_name: str, user_message: str, context: dict)
             context.get("first_piano", {}),
             response.context_update["first_piano"]
         )
-        response.context_update["first_piano"] = merged_fp
+        cleaned_fp, cleaned_meta = clean_dont_know_flags(
+            merged_fp,
+            response.context_update.get("metadata", {})
+        )
+        response.context_update["first_piano"] = cleaned_fp
+        response.context_update["metadata"] = cleaned_meta
 
     if conversation_id_str:
         try:
@@ -116,7 +128,6 @@ async def piano_agent_handler(agent_name: str, user_message: str, context: dict)
     context_update = response.context_update or {}
     first_piano = context_update.get("first_piano", {})
     brand = first_piano.get("brand")
-    serial = first_piano.get("serial_number")
     email = context.get("email", "")
     manufacturer_id = None
 
@@ -125,21 +136,13 @@ async def piano_agent_handler(agent_name: str, user_message: str, context: dict)
         if inferred_type:
             context_update["first_piano"]["type"] = inferred_type
 
-    corrected = None
     if brand:
-        result = await resolve_brand_name(brand, email)
-        context_update["brand_resolution"] = result
-        corrected = (
-            result.get("matched_name") or
-            result.get("corrected") or
-            result.get("llm_data", {}).get("brand")
-        )
-        manufacturer_id = (
-            result.get("matched_id") or
-            result.get("manufacturer_id") or
-            result.get("id")
-        )
-        if result["status"] == "rejected":
+        brand_info = await resolve_brand_fields(brand, email)
+        context_update["brand_resolution"] = brand_info["brand_resolution"]
+        manufacturer_id = brand_info["manufacturer_id"]
+        corrected = brand_info["corrected"]
+
+        if brand_info["brand_resolution"]["status"] == "rejected":
             response.message = (
                 f"⚠️ The brand **{brand}** doesn’t appear to be a known piano manufacturer.\n"
                 f"If you're unsure, please upload a photo of the piano’s logo or fallboard."
@@ -154,79 +157,25 @@ async def piano_agent_handler(agent_name: str, user_message: str, context: dict)
             context_update["first_piano"]["brand"] = corrected
 
     if manufacturer_id:
-        year, confidence, source = await resolve_age(
-            manufacturer_id=manufacturer_id,
-            serial_number=serial,
-            brand_name=corrected or brand
-        )
-        if year:
-            context_update["first_piano"].update({
-                "year_estimated": year,
-                "year_estimated_confidence": confidence,
-                "year_estimated_source": source
-            })
+        year_info = await resolve_serial_year(first_piano, manufacturer_id, corrected or brand)
+        if year_info:
+            context_update["first_piano"].update(year_info)
 
-    model = first_piano.get("model")
-    if manufacturer_id and model:
-        model_result = await resolve_model_name(model, manufacturer_id)
-        context_update.setdefault("metadata", {})["model_resolution"] = model_result
-
-        if model_result["status"] == "found":
-            context_update["first_piano"].update({
-                "model_id": model_result["id"],
-                "type": model_result.get("type"),
-                "size_cm": model_result.get("size_cm"),
-                "category": model_result.get("kind"),
-                "source_model": model_result.get("source", "database")
-            })
-
-            resolved_type = resolve_type(model_result.get("kind"), model_result.get("size_cm"))
-            if resolved_type and not context_update["first_piano"].get("type"):
-                context_update["first_piano"]["type"] = resolved_type
-
-        elif model_result["status"] == "enriched":
-            context_update["first_piano"].update({
-                "model": model_result.get("corrected", model),
-                "type": model_result["llm_data"].get("type"),
-                "size_cm": model_result["llm_data"].get("size_cm"),
-                "category": model_result["llm_data"].get("category"),
-                "source_model": "llm"
-            })
-
-            resolved_type = resolve_type(
-                model_result["llm_data"].get("category"),
-                model_result["llm_data"].get("size_cm")
-            )
-            if resolved_type and not context_update["first_piano"].get("type"):
-                context_update["first_piano"]["type"] = resolved_type
-
-        elif model_result["status"] == "rejected":
-            context_update["first_piano"]["model"] = ""
-            response.message = (
-                f"⚠️ The model **{model}** wasn’t found in our database.\n"
-                f"You can upload a photo of the nameplate or keyboard area, or just skip this step."
-            )
-            response.actions = [
-                {"suggest_action": "📸 Upload a photo", "trigger_event": "trigger_upload"},
-                {"suggest_action": "Skip this step", "trigger_event": "set_model_dont_know"}
-            ]
+    if manufacturer_id and first_piano.get("model"):
+        model_info = await resolve_model_fields(first_piano, manufacturer_id)
+        if "first_piano" in model_info:
+            context_update["first_piano"].update(model_info["first_piano"])
+        if "model_resolution" in model_info:
+            context_update.setdefault("metadata", {})["model_resolution"] = model_info["model_resolution"]
+        if "message" in model_info:
+            response.message = model_info["message"]
+        if "actions" in model_info:
+            response.actions = model_info["actions"]
 
     response.context_update = context_update
-
     if response.context_update and "first_piano" in response.context_update:
-        if not response.message:
-            meta = response.context_update.get("metadata", {})
-            acknowledged = meta.get("acknowledged")
-            if acknowledged:
-                flags = acknowledged if isinstance(acknowledged, list) else [acknowledged]
-                readable = humanize_dont_know_list(flags)
-                if readable:
-                    response.message = f"✅ Got it — {readable}, we can skip it for now."
-        else:
-            response.message = make_readable_message_from_extraction(
-                response.context_update,
-                brand_resolution=response.context_update.get("brand_resolution")
-            )
+        finalize_response_message(response, response.context_update)
+
 
     return response
 

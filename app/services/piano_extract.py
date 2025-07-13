@@ -26,6 +26,7 @@ def make_readable_message_from_extraction(
     """
     fp = extracted.get("first_piano", {}) or {}
     metadata = extracted.get("metadata", {}) or {}
+    confidences = extracted.get("confidences", {}) or {}
     corrections = []
 
     acknowledged = metadata.get("acknowledged")
@@ -34,6 +35,8 @@ def make_readable_message_from_extraction(
         readable = humanize_dont_know_list(flags)
         if readable:
             return f"✅ Got it — {readable}, we can skip it for now."
+
+    CATEGORY_MAP = {1: "grand", 2: "upright", "1": "grand", "2": "upright"}
 
     # ✅ Marque
     if brand_resolution:
@@ -47,6 +50,10 @@ def make_readable_message_from_extraction(
             corrections.append(f'Brand: **{fp.get("brand")}**')
     elif fp.get("brand"):
         corrections.append(f'Brand: **{fp["brand"]}**')
+
+    # 🆔 Modèle
+    if fp.get("model"):
+        corrections.append(f'Model: {fp["model"]}')
 
     # 🔢 Numéro de série
     if fp.get("serial_number"):
@@ -63,17 +70,23 @@ def make_readable_message_from_extraction(
 
     # 🎵 Nombre de notes
     if fp.get("nb_notes"):
-        corrections.append(f'Notes: {fp["nb_notes"]}')
+        confidence = confidences.get("nb_notes", 0)
+        if confidence == 0:
+            corrections.append(f'Notes: {fp["nb_notes"]} (default)')
+        else:
+            corrections.append(f'Notes: {fp["nb_notes"]}')
 
-    # 🎹 Catégorie
-    if fp.get("category"):
-        corrections.append(f'Category: {fp["category"]}')
+    # 🎹 Catégorie (avec conversion numérique éventuelle)
+    cat = fp.get("category")
+    if cat:
+        readable_cat = CATEGORY_MAP.get(cat, cat)
+        corrections.append(f'Category: {str(readable_cat).capitalize()}')
 
     # 🧩 Type
     if fp.get("type"):
         corrections.append(f'Type: {fp["type"]}')
-    elif fp.get("category") and fp.get("size_cm"):
-        inferred = resolve_type(fp["category"], fp["size_cm"])
+    elif cat and fp.get("size_cm"):
+        inferred = resolve_type(CATEGORY_MAP.get(cat, cat), fp["size_cm"])
         if inferred:
             corrections.append(f'Type: {inferred} (inferred from size and category)')
 
