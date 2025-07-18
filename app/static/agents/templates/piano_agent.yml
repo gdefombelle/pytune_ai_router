@@ -27,13 +27,13 @@ triggers:
   - event: page_visit
     condition: current_page == "/pianos"
 
-
 context:
   fetch:
     - user_profile
   extra:
     - raw_user_input
     - first_piano
+    - dont_know_flags
   variables:
     first_piano: first_piano
     no_brand: not first_piano or not first_piano.brand
@@ -94,12 +94,19 @@ conversation:
       - suggest_action: "Confirm my piano"
         trigger_event: confirm_piano
 
-  - elif: is_confirmed
+  - elif: is_confirmed and not first_piano.skipped_upload
     say: >
       ✅ Your piano has been successfully saved. Would you like to upload photos of it (optional)? Click ➕
     actions:
+      - suggest_action: "Upload photos"
+        trigger_event: trigger_upload
       - suggest_action: "Skip this step"
         trigger_event: skip_upload
+
+  - elif: is_confirmed and first_piano.skipped_upload
+    continue: true  # ⬅️ LLM switchera automatiquement vers prompt_piano_agent_conversation.j2
+    say: ${llm_response}
+    actions: []
 
   - elif: not user_profile.music_start_age
     say: >

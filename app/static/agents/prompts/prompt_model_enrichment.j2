@@ -1,0 +1,39 @@
+{% if model_name and brand_name %}
+The user provided the following information about their piano model:
+
+- Brand: "{{ brand_name }}"
+- Model: "{{ model_name }}"
+{% if category %}- Category: {{ category }}{% endif %}
+{% if type %}- Type: {{ type }}{% endif %}
+{% if size_cm %}- Size: {{ size_cm }} cm{% endif %}
+{% if year_estimated %}- Estimated year: {{ year_estimated }}{% endif %}
+
+Your task as a piano historian and model identifier is to determine the nature of this model.
+
+Please analyze whether:
+
+1. It exists officially in the manufacturer's catalog (e.g., Yamaha C7).
+2. It is a commemorative, tribute, or marketing model (e.g., "Chopin", "Liszt").
+3. It refers to a known historical instrument (e.g., a piano played by Chopin, identified by a serial number).
+
+🔁 Output Requirements:
+
+Start your reply with a valid **strict JSON object** in the format:
+
+{
+  "status": "found" | "not_found" | "informal_reference",
+  "model": "{{ model_name }}",
+  "category": "grand" | "upright" | null,
+  "type": "concert grand" | "baby grand" | "studio upright" | ...,
+  "size_cm": 140,
+  "reference_serial_numbers": ["7267", "13819", "14810"],
+  "notes": "Short explanation with historical or catalog context.",
+  "source": "llm"
+}
+
+Then, **after the JSON**, provide a brief and accessible explanation in plain text for the user interface.
+
+✅ The explanation must be concise, didactic, and historically accurate.
+
+⚠️ Do not use markdown or code blocks. Do not explain the JSON format. Just output the JSON, followed by the user-facing summary.
+{% endif %}

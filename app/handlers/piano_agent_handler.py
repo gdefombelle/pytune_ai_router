@@ -1,5 +1,5 @@
 import asyncio
-from typing import Optional
+from typing import Dict, Optional
 from uuid import UUID
 from fastapi import Request, HTTPException
 from pytune_auth_common.models.schema import UserOut
@@ -23,6 +23,8 @@ from app.services.piano_logic import (
     resolve_serial_year,
     finalize_response_message
 )
+import re
+from app.utils.normalize_piano_data import normalize_piano_data
 
 def is_identification_complete(first_piano: dict) -> bool:
     return (
@@ -33,23 +35,43 @@ def is_identification_complete(first_piano: dict) -> bool:
         and first_piano.get("confirmed") is True
     )
 
+def should_transition_to_conversation(first_piano: dict) -> bool:
+    return (
+        first_piano.get("confirmed") is True and
+        first_piano.get("brand") and
+        first_piano.get("category") and
+        (first_piano.get("model") or first_piano.get("size_cm") or first_piano.get("type")) and
+        (first_piano.get("serial_number") or first_piano.get("year_estimated"))
+    )
+
+
 async def piano_agent_handler(agent_name: str, user_message: str, context: dict) -> AgentResponse:
-
-
     conversation_id_str = context.get("conversation_id")
     first_piano = context.get("first_piano", {})
 
-    if user_message == "__trigger_event__:save_piano":
-        print("🧪 Simulating piano save...")
-        await asyncio.sleep(0.8)
-        return AgentResponse(
-            message="✅ Your piano has been successfully saved.",
-            actions=[
-                {"suggest_action": "Upload photos", "trigger_event": "trigger_upload"},
-                {"suggest_action": "Skip this step", "trigger_event": "skip_upload"}
-            ],
-            context_update={"first_piano": {"confirmed": True}}
-        )
+    if user_message.strip() == "__trigger_event__:skip_upload":
+        print("⏭️ Skipping upload step — checking for mode transition...")
+        enriched = enrich_context(context)
+        if should_transition_to_conversation(enriched.get("first_piano", {})):
+            chat_history = []
+            conversation_id_str = context.get("conversation_id")
+            if conversation_id_str:
+                try:
+                    uuid_ = UUID(conversation_id_str)
+                    chat_history = await get_conversation_history(uuid_)
+                except Exception as e:
+                    print("⚠️ Could not fetch chat history:", e)
+
+            enriched["chat_history"] = [
+                {"role": m.role, "content": m.content}
+                for m in chat_history if m.role in ("user", "assistant")
+            ]
+            return await run_chat_turn(
+                user_input="",
+                prompt_name="prompt_piano_agent_conversation.j2",
+                context=enriched,
+                model="gpt-4"
+            )
 
     if is_identification_complete(first_piano):
         chat_history = []
@@ -110,6 +132,12 @@ async def piano_agent_handler(agent_name: str, user_message: str, context: dict)
         response.context_update["first_piano"] = cleaned_fp
         response.context_update["metadata"] = cleaned_meta
 
+    # 🧼 Si le message LLM contient du JSON en fin de texte, on le retire
+    if response.message:
+        match = re.search(r"^(.*?)\n?{[\s\S]+}", response.message.strip())
+        if match:
+            response.message = match.group(1).strip()
+
     if conversation_id_str:
         try:
             uuid_ = UUID(conversation_id_str)
@@ -163,21 +191,40 @@ async def piano_agent_handler(agent_name: str, user_message: str, context: dict)
 
     if manufacturer_id and first_piano.get("model"):
         model_info = await resolve_model_fields(first_piano, manufacturer_id)
+
         if "first_piano" in model_info:
-            context_update["first_piano"].update(model_info["first_piano"])
+            enriched_fp = model_info["first_piano"]
+            existing_fp = context_update.setdefault("first_piano", {})
+            for key, value in enriched_fp.items():
+                if value is not None and (key not in existing_fp or existing_fp[key] in [None, "", 0]):
+                    existing_fp[key] = value
+
         if "model_resolution" in model_info:
             context_update.setdefault("metadata", {})["model_resolution"] = model_info["model_resolution"]
-        if "message" in model_info:
-            response.message = model_info["message"]
+
+        message = model_info.get("message", "")
+        llm_notes = model_info.get("model_resolution", {}).get("llm_data", {}).get("notes")
+
+        if llm_notes and llm_notes not in message:
+            message += "\n\n" + llm_notes
+
+        if message:
+            response.message = message
+
         if "actions" in model_info:
             response.actions = model_info["actions"]
 
     response.context_update = context_update
-    if response.context_update and "first_piano" in response.context_update:
-        finalize_response_message(response, response.context_update)
+    existing_message = response.message or ""
 
+    if "first_piano" in context_update:
+        finalize_response_message(response, context_update)
+
+    if existing_message and existing_message.strip() not in response.message:
+        response.message += "\n\n" + existing_message.strip()
 
     return response
+
 
 async def piano_agent_start_handler(
     agent_name: str,
@@ -198,7 +245,7 @@ async def piano_agent_start_handler(
     brand = first_piano.get("brand")
     serial = first_piano.get("serial_number")
     email = enriched_context.get("email", "")
-
+    context_update = {}
     if brand:
         result = await resolve_brand_name(brand, email)
         context_update["brand_resolution"] = result
@@ -212,7 +259,7 @@ async def piano_agent_start_handler(
         if result["status"] == "rejected":
             response.message = (
                 f"\u26a0\ufe0f The brand **{brand}** doesn’t appear to be a known piano manufacturer.\n"
-                f"If you're unsure, please upload a photo of the piano’s logo or fallboard."
+                f"If you're unsure, please upload other photos of the piano’s logo or fallboard."
             )
             response.actions = [{
                 "label": "📸 Upload a photo",
@@ -242,3 +289,30 @@ async def piano_agent_start_handler(
         }
 
     return response
+
+async def save_piano_handler(context: Dict, email: str = None) -> AgentResponse:
+    first_piano = context.get("first_piano", {})
+    email = context.get("email", email)
+
+    if not first_piano or not email:
+        return AgentResponse(message="❌ Missing required piano or user information.")
+
+    # 🧹 Optionnel : nettoyage des champs
+    normalized = normalize_piano_data(first_piano)
+
+    print("💾 Simulating piano save for user:", email)
+    # Ici, tu pourrais logger, stocker dans Redis, ou ignorer
+
+    return AgentResponse(
+        message="✅ Your piano has been saved!",
+        context_update={
+            "first_piano": {
+                **normalized,
+                "saved": True  # ← te permet d’éviter de re-sauver
+            }
+        },
+        actions=[
+            {"suggest_action": "Upload photos", "trigger_event": "trigger_upload"},
+            {"suggest_action": "Skip this step", "trigger_event": "skip_upload"}
+        ]
+    )

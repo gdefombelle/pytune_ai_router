@@ -1,17 +1,20 @@
 import json
 import re
 from typing import Dict
+
 from pytune_llm.llm_connector import call_llm
-from pytune_data.piano_data_service import search_model_full
+from app.core.prompt_builder import render_prompt_template
+from pytune_data.piano_data_service import search_model_full, get_manufacturer_name
 
-async def resolve_model_name(model_name: str, manufacturer_id: int) -> Dict:
+
+async def resolve_model_name(model_name: str, first_piano: dict, manufacturer_id: int) -> Dict:
     """
-    Résolution du nom de modèle de piano.
+    Résolution du nom de modèle de piano :
     1. Recherche dans la base PyTune
-    2. Si introuvable, enrichissement via LLM
+    2. Sinon, enrichissement structuré via GPT-4o avec prompt Jinja centralisé
     """
 
-    # ✅ Étape 1 : recherche dans la base
+    # 🔍 Étape 1 — recherche dans la base
     result = await search_model_full(model_name, manufacturer_id, email=None)
     print("🔍 Résultat brut de search_model_full:", result)
 
@@ -23,49 +26,49 @@ async def resolve_model_name(model_name: str, manufacturer_id: int) -> Dict:
         return {
             "status": "found",
             "source": "database",
-            **top  # ⬅️ merge tout le contenu de top directement ici
+            **top
         }
 
-    # 🔍 Étape 2 : enrichissement LLM
-    enrichment_prompt = f"""
-The user entered a piano model name: "{model_name}".
-
-Determine whether this model is known and extract its category, type, and size if possible.
-
-Return a valid JSON object like:
-{{
-  "model": "C7",
-  "category": "grand",
-  "type": "concert grand",
-  "size_cm": 227,
-  "notes": "Used in Yamaha professional series"
-}}
-
-If unknown, return:
-{{ "error": "Unknown model" }}
-"""
-
+    # 🧠 Étape 2 — enrichissement LLM via prompt Jinja
     try:
-        llm_output = await call_llm(
-            prompt=enrichment_prompt,
-            context={"source": "model_resolver", "attempted": model_name},
-            metadata={"llm_backend": "openai", "llm_model": "gpt-3.5-turbo"}
+        # 🏷️ Nom humain du fabricant (Pleyel, Yamaha, etc.)
+        brand_name = await get_manufacturer_name(manufacturer_id)
+
+        prompt = render_prompt_template(
+            agent_name="model_enrichment",
+            context={
+                "model_name": model_name,
+                "brand_name": brand_name,
+                "category": first_piano.get("category"),
+                "type": first_piano.get("type"),
+                "size_cm": first_piano.get("size_cm"),
+                "year_estimated": first_piano.get("year_estimated")
+            }
         )
 
-        match = re.search(r"{[\s\S]+}", llm_output)
-        raw_json = match.group(0) if match else llm_output.strip()
+
+        llm_output = await call_llm(
+            prompt=prompt,
+            context={"source": "model_resolver", "attempted": model_name},
+            metadata={"llm_backend": "openai", "llm_model": "gpt-4o"}
+        )
+
+        match = re.search(r"{[\s\S]+?}\s*", llm_output)
+        raw_json = match.group(0).strip() if match else llm_output.strip()
         parsed = json.loads(raw_json)
 
-        if "error" in parsed:
+        if parsed.get("status") == "not_found":
             return {
                 "status": "rejected",
                 "source": "llm",
                 "attempted": model_name,
-                "reason": parsed["error"]
+                "reason": parsed.get("notes", "Unknown model"),
+                "llm_data": parsed  # ✅ ceci manquait !
             }
 
+
         return {
-            "status": "enriched",
+            "status": parsed["status"],
             "source": "llm",
             "original": model_name,
             "corrected": parsed.get("model", model_name),
@@ -77,5 +80,6 @@ If unknown, return:
         return {
             "status": "llm_error",
             "source": "llm_error",
-            "attempted": model_name
+            "attempted": model_name,
+            "error": str(e)
         }

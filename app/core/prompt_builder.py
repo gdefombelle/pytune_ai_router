@@ -1,7 +1,12 @@
 # 👈 ← Construit le prompt à partir de la policy
 from typing import Optional
-from pytune_data.models import UserContext
 
+from jinja2 import Environment, FileSystemLoader, TemplateNotFound
+from pytune_data.models import UserContext
+from app.core.paths import PROMPT_DIR, POLICY_DIR
+
+# 🔧 Jinja2 environment
+jinja_env = Environment(loader=FileSystemLoader(PROMPT_DIR), autoescape=False)
 
 def build_prompt(user_context: UserContext, page: str, user_message: Optional[str] = None) -> str:
     """
@@ -36,3 +41,16 @@ def build_prompt(user_context: UserContext, page: str, user_message: Optional[st
     """)
 
     return "\n".join(prompt)
+
+def render_prompt_template(agent_name: str, context: dict) -> str:
+    template_file = f"prompt_{agent_name}.j2"
+    try:
+        template = jinja_env.get_template(template_file)
+        print("📦 Jinja context keys:", context.keys())
+        print("🧪 last_prompt =", context.get("last_prompt"))
+        return template.render(context)
+    except TemplateNotFound:
+        raise FileNotFoundError(f"Prompt template not found for agent '{agent_name}' at {PROMPT_DIR}/{template_file}")
+    except Exception as e:
+        print(f"⚠️ Jinja2 rendering error for '{agent_name}':", str(e))
+        raise

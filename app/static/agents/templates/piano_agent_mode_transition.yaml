@@ -1,13 +1,23 @@
-# Piano Agent - Identification → Conversation Mode
+# piano_agent_mode_transition.yaml
+
 mode_transition:
-  phase_1: "piano_identification"
+  phase_1: "piano_identification"  # 🎯 Structured data collection (brand, model, etc.)
+
   triggers_transition_to_phase_2_if:
+    # ✅ Piano must be confirmed
     - first_piano.confirmed is true
-    - first_piano.brand is not null
-    - first_piano.category is not null
-    - first_piano.model or first_piano.size_cm or first_piano.type
+
+    # ✅ Minimal information about the piano must be available
+    - first_piano.brand is not null and first_piano.brand != ""
+    - first_piano.category is not null and first_piano.category != ""
+    - first_piano.model or (first_piano.size_cm and first_piano.size_cm > 0) or first_piano.type
     - first_piano.serial_number or first_piano.year_estimated
-  phase_2: "piano_conversation"
+
+  phase_2: "piano_conversation"  # 💬 Emotional & musical dialogue
+
+  # 🧠 Prompt template to use in phase 2
   prompt_used_in_phase_2: prompt_piano_agent_conversation.j2
+
+  # 🗂️ Memory settings
   memory_enabled: true
   history_injected_as: chat_history[]

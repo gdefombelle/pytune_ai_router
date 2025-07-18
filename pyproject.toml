@@ -39,6 +39,7 @@ ollama = "*"               # Client Python officiel si dispo/stable (optionnel)
 
 
 uvicorn = {extras = ["standard"], version = "^0.34.0"}
+fpdf = "^1.7.2"
 
 
 [tool.poetry.group.dev.dependencies]

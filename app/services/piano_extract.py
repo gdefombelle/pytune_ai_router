@@ -1,20 +1,116 @@
 import json
+import re
 from app.services.type_resolver import resolve_type
 from app.utils.dontknow_utils import humanize_dont_know_list
+
+def looks_invalid(text: str) -> bool:
+    if not text or not isinstance(text, str):
+        return True  # vide ou None est considéré comme invalide
+    text = text.strip()
+    return (
+        len(text) < 2
+        or len(text) > 50
+        or not re.search(r"[a-zA-Z]", text)
+        or re.search(r"[#@^%*_=+{}[\]<>]", text)
+    )
+
+def normalize_approximate_values(fp: dict, metadata: dict) -> None:
+    """
+    Normalise les champs size_cm, year_estimated, model incertains (~145, circa 1940, Chopin?)
+    et ajoute des flags dans metadata.
+    """
+
+    # 🎯 Année approximative (ex: "circa 1940")
+    year_raw = fp.get("year_estimated")
+    if isinstance(year_raw, str):
+        match = re.search(r"\b(18\d{2}|19\d{2}|20[01]\d)\b", year_raw)
+        if match:
+            fp["year_estimated"] = int(match.group(1))
+            metadata["year_approx"] = True
+
+    # 📏 Taille approximative (ex: "~140", "about 145")
+    size_raw = fp.get("size_cm")
+    if isinstance(size_raw, str):
+        match = re.search(r"(\d{2,3})", size_raw)
+        if match:
+            size_val = int(match.group(1))
+            if 40 <= size_val <= 300:
+                fp["size_cm"] = size_val
+                metadata["size_approx"] = True
+            else:
+                fp["size_cm"] = None
+                metadata["size_rejected"] = True
+
+    # ❓ Modèle incertain (ex: "Chopin?", "maybe C3")
+    model = fp.get("model", "")
+    if isinstance(model, str) and ("?" in model or "maybe" in model.lower()):
+        fp["model"] = model.replace("?", "").replace("maybe", "").strip()
+        metadata["model_uncertain"] = True
+
+    # 🧠 Flag global
+    if metadata.get("year_approx") or metadata.get("size_approx") or metadata.get("model_uncertain"):
+        metadata["approximation_detected"] = True
+
+def render_warnings(metadata: dict) -> str:
+    """
+    Affiche joliment les avertissements détectés dans metadata["warnings"].
+    """
+    warnings = metadata.get("warnings", [])
+    if not warnings:
+        return ""
+
+    return "\n\n⚠️ Some values were approximate or corrected:\n" + "\n".join(f"- {w}" for w in warnings)
+
 
 
 def extract_structured_piano_data(text: str) -> dict:
     """
-    Tente de parser `text` comme JSON et retourne le dictionnaire complet s’il est bien formé.
+    Tente de parser un message contenant potentiellement du texte suivi d’un bloc JSON.
+    Valide les champs incohérents (modèle, marque, taille) et normalise les valeurs approximatives.
     """
     try:
+        # 🔍 Extraire le premier bloc JSON valide s’il y a du texte autour
+        match = re.search(r"{[\s\S]+}", text)
+        if match:
+            text = match.group(0).strip()
+
         data = json.loads(text)
-        if isinstance(data, dict) and "first_piano" in data:
-            return data  # 🔁 On retourne TOUT (first_piano, confidences, metadata, ...)
+        if not isinstance(data, dict) or "first_piano" not in data:
+            return {}
+
+        extracted = data
+        fp = extracted.get("first_piano", {})
+        metadata = extracted.setdefault("metadata", {})
+
+        # 🔍 Validation du modèle
+        if "model" in fp and looks_invalid(fp["model"]):
+            print(f"⚠️ Invalid model rejected: {fp['model']}")
+            fp["model"] = ""
+            metadata["model_rejected"] = True
+
+        # 🔍 Validation de la marque
+        if "brand" in fp and looks_invalid(fp["brand"]):
+            print(f"⚠️ Invalid brand rejected: {fp['brand']}")
+            fp["brand"] = ""
+            metadata["brand_rejected"] = True
+
+        # 🔍 Validation de la taille numérique
+        if "size_cm" in fp and isinstance(fp["size_cm"], (int, float)):
+            size = fp["size_cm"]
+            if size < 40 or size > 300:
+                print(f"⚠️ Unrealistic size_cm rejected: {size}")
+                fp["size_cm"] = None
+                metadata["size_rejected"] = True
+
+        # 🧠 Normalisation approximative : "~145", "circa 1940", "Chopin?"
+        normalize_approximate_values(fp, metadata)
+
+        return extracted
+
     except json.JSONDecodeError as e:
         print("❌ JSON decode error:", e)
+        return {}
 
-    return {}
 
 def make_readable_message_from_extraction(
     extracted: dict,
@@ -66,7 +162,8 @@ def make_readable_message_from_extraction(
 
     # 📏 Dimensions
     if fp.get("size_cm"):
-        corrections.append(f'Size: {fp["size_cm"]} cm')
+        prefix = "~" if metadata.get("size_approx") else ""
+        corrections.append(f'Size: {prefix}{fp["size_cm"]} cm')
 
     # 🎵 Nombre de notes
     if fp.get("nb_notes"):

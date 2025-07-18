@@ -12,6 +12,7 @@ from pytune_chat.store import get_conversation_history
 from uuid import UUID
 
 from app.utils.templates import interpolate_yaml
+from app.core.prompt_builder import render_prompt_template
 
 # 🔧 Jinja2 environment
 jinja_env = Environment(loader=FileSystemLoader(PROMPT_DIR), autoescape=False)
@@ -23,20 +24,6 @@ def load_yaml(agent_name: str) -> dict:
         raise FileNotFoundError(f"Policy file not found at: {path}")
     with path.open("r", encoding="utf-8") as f:
         return yaml.safe_load(f)
-
-
-def render_prompt_template(agent_name: str, context: dict) -> str:
-    template_file = f"prompt_{agent_name}.j2"
-    try:
-        template = jinja_env.get_template(template_file)
-        print("📦 Jinja context keys:", context.keys())
-        print("🧪 last_prompt =", context.get("last_prompt"))
-        return template.render(context)
-    except TemplateNotFound:
-        raise FileNotFoundError(f"Prompt template not found for agent '{agent_name}' at {PROMPT_DIR}/{template_file}")
-    except Exception as e:
-        print(f"⚠️ Jinja2 rendering error for '{agent_name}':", str(e))
-        raise
 
 async def start_policy(agent_name: str, context: dict) -> AgentResponse:
     """

@@ -14,7 +14,8 @@ from pytune_chat.store import append_message
 # ✅ Handlers spécialisés
 from app.handlers.piano_agent_handler import (
     piano_agent_handler,
-    piano_agent_start_handler
+    piano_agent_start_handler,
+    save_piano_handler
 )
 from app.utils.context_helpers import prepare_enriched_context
 from app.utils.piano_merge import merge_first_piano_data
@@ -114,10 +115,38 @@ async def evaluate_agent(
                 if k not in enriched_context["first_piano"]:
                     enriched_context["first_piano"][k] = v
 
+    # 💾 Enregistre le piano si confirmé mais pas encore sauvegardé
+    snapshot = extra_context.get("agent_form_snapshot", {})
+    first_piano = snapshot.get("first_piano") or enriched_context.get("first_piano", {})
+
+    save_response = None
+    if first_piano.get("confirmed") and not first_piano.get("saved"):
+        email = enriched_context.get("email")
+        if email:
+            save_response = await save_piano_handler(context=enriched_context, email=email)
+            # 👇 Injecte dans le contexte directement pour policy + backend
+            enriched_context["first_piano"] = {
+                **enriched_context.get("first_piano", {}),
+                **save_response.context_update.get("first_piano", {}),
+            }
+
     # 🤖 Exécution de la policy
     response = await load_policy_and_resolve(agent_name, enriched_context)
 
-    # 💾 Historisation mémoire (si message assistant et conversation active)
+    # ✅ Si save_response a un message/action → fusionne dans la réponse principale
+    if save_response:
+        if save_response.message:
+            response.message = (response.message or "") + f"\n\n{save_response.message}"
+        if save_response.actions:
+            response.actions = save_response.actions
+        if save_response.context_update:
+            response.context_update = {
+                **(response.context_update or {}),
+                **save_response.context_update
+            }
+
+
+    # 🧠 Historisation mémoire
     if conversation_id and response.message:
         try:
             uuid_ = UUID(conversation_id)
@@ -126,7 +155,6 @@ async def evaluate_agent(
             print(f"⚠️ Failed to append assistant message from /evaluate: {e}")
 
     return response
-
 
 @router.post("/{agent_name}/message", response_model=AgentResponse)
 async def agent_message(
@@ -140,7 +168,7 @@ async def agent_message(
 
     # 🧠 Centralise ici le contexte enrichi
     context = await prepare_enriched_context(user, agent_name, message, extra_context)
-
+    
     if agent_name == "piano_agent":
         ret = await piano_agent_handler(agent_name, message, context)
         return ret
@@ -158,8 +186,11 @@ async def submit_flags(
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
-    flags = payload.get("flags", {})
-    conversation_id = payload.get("conversation_id")
+    extra_context = payload.get("extra_context", {})
+    snapshot = extra_context.get("agent_form_snapshot", {})
+    flags = snapshot.get("dont_know_flags", {})
+
+    conversation_id = extra_context.get("conversation_id")
     readable = humanize_dont_know_list([k for k, v in flags.items() if v])
 
     msg = f"✅ Got it — {readable}, we can skip it for now." if readable else ""
@@ -171,7 +202,6 @@ async def submit_flags(
         except Exception as e:
             print(f"⚠️ Failed to append assistant message from /flags: {e}")
 
-    # ✅ Envoie uniquement les flags, laisse le frontend fusionner
     return AgentResponse(
         message=msg,
         context_update={

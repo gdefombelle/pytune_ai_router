@@ -11,6 +11,7 @@ import os
 
 from .routers.chat_router import router as chat_router
 from .routers.agent_launcher_router import router as agent_launcher_router
+from .routers.agents.piano_photos import router as photos_upload_router
 from simple_logger.logger import get_logger, SimpleLogger
 from pytune_configuration.sync_config_singleton import config, SimpleConfig
 
@@ -101,6 +102,7 @@ else:
 app.include_router(chat_router.router)
 # app.include_router(welcome_agent_router.router)
 app.include_router(agent_launcher_router)
+app.include_router(photos_upload_router)
 
 
 # 📄 Gestion des erreurs FastAPI

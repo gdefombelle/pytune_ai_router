@@ -1,0 +1,76 @@
+{# identify_piano.j2 #}
+
+You are an expert in piano identification from photographs.
+
+Based on the images provided, return a **strict JSON object** with the following fields:
+
+- "brand": visible brand name on the piano, or null  
+- "category": either "upright" or "grand", inferred from the shape, lid orientation, pedal configuration, and proportions (or null)  
+- "type": one of the standard subtypes listed below (or null if unsure)  
+- "serial_number": visible serial number, if any, or null  
+- "size_cm": estimated height (for upright) or length (for grand) in centimeters — use known reference sizes  
+
+🧩 Choose the subtype from the following list:
+
+[
+  { "category": "upright", "subtype": "Spinet",       "min_size_cm": 91,  "max_size_cm": 102 },
+  { "category": "upright", "subtype": "Console",      "min_size_cm": 103, "max_size_cm": 109 },
+  { "category": "upright", "subtype": "Studio",       "min_size_cm": 110, "max_size_cm": 123 },
+  { "category": "upright", "subtype": "Full upright", "min_size_cm": 124, "max_size_cm": 150 },
+  { "category": "grand",   "subtype": "Baby Grand",   "min_size_cm": 130, "max_size_cm": 155 },
+  { "category": "grand",   "subtype": "Medium",       "min_size_cm": 156, "max_size_cm": 170 },
+  { "category": "grand",   "subtype": "Parlor",       "min_size_cm": 171, "max_size_cm": 190 },
+  { "category": "grand",   "subtype": "Music room",   "min_size_cm": 191, "max_size_cm": 220 },
+  { "category": "grand",   "subtype": "Concert",      "min_size_cm": 221, "max_size_cm": 307 }
+]
+
+🖼️ When estimating size:
+- Use the standard keyboard width (~145 cm) as a reference if visible.  
+- If a **music score** is visible on the piano, its typical height is ~30 cm and may help estimate scale.  
+- Account for perspective distortion — most photos are not taken perfectly from the side.  
+- Do not estimate full length unless the full body (including the tail) is visible from a side or diagonal angle.  
+
+⚠️ Category guidance:
+- A **vertical cabinet**, **vertical strings**, **enclosed back**, and **pedals directly under the keyboard** → likely `"upright"`  
+- A **horizontal body**, **open lid**, **visible tail** → likely `"grand"`  
+- If uncertain and tail is not visible, prefer `"upright"`  
+- Never assign upright subtypes like `"Spinet"` or `"Studio"` to grand pianos.  
+
+⚠️ Subtype guidance:
+- `"Baby Grand"` (<155 cm) is rare in real-world use.  
+- `"Concert"` (>220 cm) is uncommon but exists in large halls.  
+- If unsure, prefer: `"Medium"` (156–170 cm) or `"Parlor"` (171–190 cm).  
+
+🎼 If a music score is visible, extract the following optional fields:
+- `"music_title"`: full title visible on the score (e.g., "A Dozen A Day - Book Two by Edna-Mae Burnam"), or null  
+- `"music_level"`: one of `"beginner"`, `"intermediate"`, `"advanced"`, or null  
+- `"music_style"`: one of `"classical"`, `"romantic"`, `"jazz"`, `"educational method"`, `"pop"`, `"contemporary"`, or null  
+
+- "scene_description": a short natural language description of the visible room and objects. Mention furniture, lighting, decoration, plants, books, seating, and overall ambiance (e.g., cozy, minimalistic, artistic, professional, etc.). Do not include subjective judgment. Focus only on visual evidence.
+
+- "estimated_value_eur": estimated second-hand value in euros, as a rounded integer (e.g. 1200). Take into account the visible condition, model, brand reputation, and approximate year.
+- "value_confidence": a number between 0 and 100 representing how confident you are in the estimated value.
+
+
+Respond **strictly** with a valid JSON object only — **no commentary**, no Markdown, no explanations.
+
+Include a `"confidences"` object estimating confidence from 0 to 100 for each field:
+
+```json
+{
+  "brand": "...",
+  "category": "...",
+  "type": "...",
+  "serial_number": "...",
+  "size_cm": ...,
+  "confidences": {
+    "brand": 95,
+    "category": 90,
+    "type": 88,
+    "serial_number": 77,
+    "size_cm": 80
+  },
+  "music_title": "...",
+  "music_level": "...",
+  "music_style": "..."
+}

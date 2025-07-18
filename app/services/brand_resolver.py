@@ -61,7 +61,7 @@ Example:
         response = await call_llm(
             prompt=enrichment_prompt,
             context={"source": "brand_resolver", "attempted": brand},
-            metadata={"llm_backend": "openai", "llm_model": "gpt-3.5-turbo"}
+            metadata={"llm_backend": "openai", "llm_model": "gpt-4o"}
         )
 
         # Extraire le JSON retourné (avec ou sans bloc ```json)
@@ -93,10 +93,10 @@ Example:
 
     # Étape 3 — Correction orthographique simple
     correction_prompt = f"""
-The user entered this brand name: "{brand}".
-Try to guess the most likely correct piano manufacturer name.
-Return only the corrected name in plain text (no formatting).
-"""
+    The user entered this brand name: "{brand}".
+    Try to guess the most likely correct piano manufacturer name.
+    Return only the corrected name in plain text (no formatting).
+    """
 
     try:
         corrected = await call_llm(

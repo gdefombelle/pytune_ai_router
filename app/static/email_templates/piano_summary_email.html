@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Your Piano Summary Report</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f7f9fa;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 620px;
+      margin: 40px auto;
+      padding: 24px;
+      background-color: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    }
+    h1 {
+      font-size: 24px;
+      color: #2c3e50;
+      margin-bottom: 10px;
+    }
+    h2 {
+      font-size: 18px;
+      color: #4CAF50;
+      margin-top: 24px;
+    }
+    p {
+      font-size: 16px;
+      color: #333333;
+      line-height: 1.6;
+    }
+    .highlight {
+      font-weight: bold;
+      color: #2c3e50;
+    }
+    .footer {
+      margin-top: 40px;
+      text-align: center;
+      font-size: 13px;
+      color: #888888;
+    }
+    .block {
+      background-color: #f1f1f1;
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin: 12px 0;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎹 Your Piano Report</h1>
+    <p>Hello {{ user }},</p>
+    <p>We’ve completed the analysis of your piano based on the photos you submitted. Below is a summary of our findings:</p>
+
+    <div class="block">
+      <p><span class="highlight">Brand:</span> {{ brand }}</p>
+      <p><span class="highlight">Estimated Year:</span> {{ year }}</p>
+      <p><span class="highlight">Model (Hypothesis):</span> {{ model }}{% if variant %} — <em>{{ variant }}</em>{% endif %}</p>
+    </div>
+
+    {% if description %}
+    <h2>📖 Description</h2>
+    <p>{{ description }}</p>
+    {% endif %}
+
+    <p>📎 The complete PDF summary is attached to this email.</p>
+
+    <p>If you have any questions or would like a second opinion, feel free to reply to this message.</p>
+
+    <div class="footer">
+      <p>Warm regards,<br>The PyTune Team</p>
+    </div>
+  </div>
+</body>
+</html>
