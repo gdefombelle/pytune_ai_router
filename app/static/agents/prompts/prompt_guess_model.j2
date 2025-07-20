@@ -31,16 +31,15 @@ Respond strictly in the following JSON format:
 {% endif %}
 
 📌 Instructions:
-- Infer the most probable **model name** (e.g., "Cabinet Grand Upright", "Parlor Grand"), or return null if unknown.
-- Suggest a **variant** if known (e.g., "Style N", "Style S"), or return null.
-- Write a **concise and realistic description**, mentioning:
-  - Physical style (e.g. columns, finish, size)
-  - Intended purpose (concert, salon, study, etc.)
-  - Country and factory of origin
-  - Known distributor if relevant
-  - If possible, relate the instrument to historical usage or famous musicians of that brand and era (e.g. Paderewski, Debussy)
-- Use caution: **do not invent fictional model names or artists**.
-- Mention uncertainty clearly when applicable.
-- Ensure the JSON is **valid and parsable**.
+- You MUST try to infer a **model name** (e.g., "Model A", "Style VI", "Opus 215"), based on real catalogs or plausible historical logic. Use type terms like "Parlor Grand" only as fallback.
+- Suggest a **variant** (e.g., "Style N", "Studio version") if relevant, else return null.
+- Write a realistic description mentioning:
+  - Physical traits (columns, wood finish, body shape)
+  - Purpose: concert / salon / study
+  - Manufacturer factory or city if known
+  - Any well-known artists or usage in historical context
+- Clearly indicate uncertainty if the model cannot be confidently identified.
+- Do not invent fictional models or artist names.
+- Ensure the JSON is strictly valid and parsable.
 
 Strictly output only the JSON block.

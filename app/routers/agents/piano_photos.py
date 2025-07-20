@@ -16,8 +16,10 @@ from app.core.prompt_builder import render_prompt_template
 from app.models.piano_guess_model import PianoGuessInput
 from fastapi import UploadFile, File, HTTPException
 from app.services.piano_guess_model import guess_model_from_images as guess_model_service
-from app.services.piano_report import generate_model_report
+from app.services.piano_report import generate_piano_summary_pdf
 from app.utils.upload_images import upload_images_to_miniofiles
+from pytune_data.piano_identification_session import create_guess_session, update_identification_session
+from app.services.image_labelling import label_images_from_session
 
 router = APIRouter(tags=["Photos"])
 
@@ -27,7 +29,7 @@ async def generate_report_pdf(data: PianoGuessInput, files: List[UploadFile] = F
     report_data = await guess_model_service(data, urls)
 
     # 📄 Génère le PDF
-    pdf_bytes = generate_model_report(report_data, urls)
+    pdf_bytes = generate_piano_summary_pdf(report_data, urls)
 
     # Optionnel: stockage temporaire sur disque
     path = "/tmp/piano_report.pdf"
@@ -109,21 +111,25 @@ async def identify_from_photos(manufacturer_id: int, files: list[UploadFile] = F
 
     # ⭐ Tentative de deviner le modèle (guess_model_from_images)
     try:
-
-        model_hypothesis = await guess_model_from_images(
-            brand=result.get("brand"),
-            distributor=result.get("distributor"),
-            serial_number=result.get("serial_number"),
-            year_estimated=result.get("age"),
-            category=result.get("category"),
-            type=result.get("type"),
-            size_cm=result.get("size_cm"),
-            nb_notes=result.get("nb_notes"),
-            sheet_music=result.get("extra", {}).get("sheet_music", {}).get("title"),
-            scene_description=result.get("extra", {}).get("scene_description"),
-            photos=result.get("extra", {}).get("photos", []),
+        sheet_music_title = (result.get("extra", {}).get("sheet_music") or {}).get("title")
+        model_data = {
+            "brand": result.get("brand"),
+            "distributor": result.get("distributor"),
+            "serial_number": result.get("serial_number"),
+            "year_estimated": result.get("age"),
+            "category": result.get("category"),
+            "type": result.get("type"),
+            "size_cm": result.get("size_cm"),
+            "nb_notes": result.get("nb_notes"),
+            "sheet_music": sheet_music_title,
+            "scene_description": result.get("extra", {}).get("scene_description"),
+            "photos": result.get("extra", {}).get("photos", []),  # ou []
+        }
+        model_hypothesis = await guess_model_service(
+            data=model_data,
             image_urls=urls
         )
+
     except Exception as e:
         print(f"[WARN] Model hypothesis failed: {e}")
         model_hypothesis = {}
