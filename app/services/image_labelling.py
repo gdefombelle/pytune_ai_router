@@ -4,19 +4,33 @@ from pytune_data.piano_identification_session import (
     update_identification_session
 )
 from pytune_llm.llm_vision import label_images_from_urls
-from services.sanitizers import sanitize_labels
+from app.services.sanitizers import sanitize_labels
 
 async def label_images_from_session(session_id: UUID) -> list[dict]:
-    """
-    Récupère une session, labellise ses images via LLM vision, et met à jour les photo_labels.
-    """
     session = await get_identification_session(session_id)
     if not session or not session.image_urls:
         raise ValueError(f"No images found for session_id={session_id}")
 
-    photo_labels = await label_images_from_urls(session.image_urls)
-    cleaned_labels = [sanitize_labels(label) for label in photo_labels]
-    # Mise à jour du champ photo_labels
-    await update_identification_session(session_id, photo_labels=cleaned_labels)
+    # ⚙️ Prépare image_data selon disponibilité metadata
+    if session.photo_metadata:
+        image_data = [
+            {
+                "url": url,
+                "filename": meta.get("filename", f"photo_{i+1}.jpg")
+            }
+            for i, (url, meta) in enumerate(zip(session.image_urls, session.photo_metadata))
+        ]
+    else:
+        image_data = [
+            {
+                "url": url,
+                "filename": url.split("/")[-1]
+            }
+            for url in session.image_urls
+        ]
 
-    return photo_labels
+    photo_labels = await label_images_from_urls(image_data)
+    cleaned_labels = [sanitize_labels(label) for label in photo_labels]
+    #await update_identification_session(session_id, photo_labels=cleaned_labels)
+
+    return cleaned_labels

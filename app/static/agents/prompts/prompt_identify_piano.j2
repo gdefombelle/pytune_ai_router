@@ -30,6 +30,12 @@ Based on the images provided, return a **strict JSON object** with the following
 - Account for perspective distortion — most photos are not taken perfectly from the side.  
 - Do not estimate full length unless the full body (including the tail) is visible from a side or diagonal angle.  
 
+{% if optical_context %}
+- You may also use the following **camera metadata** to help estimate apparent size and perspective:
+
+{{ optical_context }}
+{% endif %}
+
 ⚠️ Category guidance:
 - A **vertical cabinet**, **vertical strings**, **enclosed back**, and **pedals directly under the keyboard** → likely `"upright"`  
 - A **horizontal body**, **open lid**, **visible tail** → likely `"grand"`  
@@ -74,3 +80,5 @@ Include a `"confidences"` object estimating confidence from 0 to 100 for each fi
   "music_level": "...",
   "music_style": "..."
 }
+
+

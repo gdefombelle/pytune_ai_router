@@ -13,6 +13,7 @@ from pytune_configuration.sync_config_singleton import config, SimpleConfig
 from pytune_data.models import PianoSerialCache
 from pytune_llm.llm_client import call_llm_vision
 from pytune_data.user_data_service import get_user_context
+from app.services.image_metadata_utils import build_image_context_description
 from .brand_resolver_vision import resolve_manufacturer_vision
 from .age_resolver_vision import resolve_age_vision
 from app.core.prompt_builder import render_prompt_template
@@ -20,21 +21,32 @@ from app.core.prompt_builder import render_prompt_template
 
 async def identify_piano_from_images(
     manufacturer_id: Optional[int],
-    image_paths: List[str]
+    image_urls: List[str],
+    image_metadata: Optional[list[dict]] = None
 ) -> dict:
     try:
         manufacturer_name = (
             await get_manufacturer_name(manufacturer_id)
             if manufacturer_id and manufacturer_id != 0 else None
         )
-
+        optical_context = build_image_context_description(image_metadata or [])
+        photos = [
+        {
+            "filename": meta.get("filename", f"photo_{i+1}.jpg"),
+            "url": meta.get("minio_url")
+        }
+        for i, meta in enumerate(image_metadata or [])
+]
         prompt = render_prompt_template("identify_piano", {
-            "manufacturer_name": manufacturer_name or ""
+            "manufacturer_name": manufacturer_name or "",
+            "optical_context": optical_context,
+            "photos": photos 
         })
+        
 
         llm_response = await call_llm_vision(
             prompt=prompt,
-            image_urls=image_paths,
+            image_urls=image_urls,
             metadata={"llm_model": "gpt-4o"}
         )
 
@@ -44,7 +56,7 @@ async def identify_piano_from_images(
         match = re.search(r"```json\s*(\{.*?\})\s*```", raw_content, re.DOTALL)
         json_str = match.group(1) if match else raw_content.strip()
         data = json.loads(json_str)
-
+ 
         # Champs principaux
         brand = data.get("brand")
         category = data.get("category")
@@ -97,7 +109,7 @@ async def identify_piano_from_images(
             manufacturer_id=resolved_id,
             serial_number=serial_number,
             brand_name=resolved_brand_name,
-            image_urls=image_paths
+            image_urls=image_urls
         )
 
         return {
@@ -119,6 +131,7 @@ async def identify_piano_from_images(
                 "scene_description": scene_description,
                 "estimated_value_eur": estimated_value_eur,
                 "value_confidence": value_confidence,
+                "photos": photos,
             },
             
 

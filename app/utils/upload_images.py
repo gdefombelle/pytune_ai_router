@@ -5,13 +5,13 @@ from io import BytesIO
 from PIL import Image
 import mimetypes
 
-from pytune_data import minio_client, BUCKET_NAME, COLLECTION_NAME
+from pytune_data import minio_client, TEMP_BUCKET_NAME, COLLECTION_NAME
 from pytune_helpers.images import compress_image
 
 
 async def upload_images_to_miniofiles(
     files: List[UploadFile],
-    bucket: str = BUCKET_NAME,
+    bucket: str = TEMP_BUCKET_NAME,
     compress: bool = True,
     prefix: str = "image"
 ) -> List[str]:
