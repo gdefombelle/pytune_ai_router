@@ -36,3 +36,30 @@ async def prepare_enriched_context(
     context = await resolve_user_context(user, extra=full_extra)
     context = enrich_context(context)
     return context
+
+def build_context_snapshot(result: dict, manufacturer_id: int) -> dict:
+    return {
+        "manufacturer_id": manufacturer_id,
+        "age_method": result.get("age_method"),
+        "source": "photos.identify",
+        "inferred_scene": result.get("extra", {}).get("scene_description"),
+        "sheet_music": result.get("extra", {}).get("sheet_music"),
+        "estimated_value_eur": result.get("extra", {}).get("estimated_value_eur"),
+        "value_confidence": result.get("extra", {}).get("value_confidence"),
+    }
+
+def build_model_data(result: dict) -> dict:
+    sheet_music = result.get("extra", {}).get("sheet_music") or {}
+    return {
+        "brand": result.get("brand"),
+        "distributor": result.get("distributor"),
+        "serial_number": result.get("serial_number"),
+        "year_estimated": result.get("age"),
+        "category": result.get("category"),
+        "type": result.get("type"),
+        "size_cm": result.get("size_cm"),
+        "nb_notes": result.get("nb_notes"),
+        "sheet_music": sheet_music.get("title"),
+        "scene_description": result.get("extra", {}).get("scene_description"),
+        "photos": result.get("extra", {}).get("photos", []),
+    }

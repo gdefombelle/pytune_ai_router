@@ -1,15 +1,16 @@
 # --- pytune_piano/routers/piano_photos.py ---
 from typing import List
 from fastapi import Depends, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pytune_auth_common.models.schema import UserOut
 from pytune_auth_common.services.auth_checks import get_current_user
 from app.models.policy_model import AgentResponse
 from app.services.piano_identify_from_images_service import identify_piano_from_images  # à adapter selon ton projet
-from pytune_data.minio_client import PIANO_SESSION_BUCKET, minio_client, TEMP_BUCKET_NAME
-from pytune_helpers.images import compress_image, compress_image_and_extract_metadata
+from pytune_data.minio_client import PIANO_SESSION_IMAGES_BUCKET, minio_client, TEMP_BUCKET_NAME
+from pytune_data.models import User
+from pytune_helpers.images import compress_image, compress_image_and_extract_metadata, download_images_locally, safe_json
 from io import BytesIO
-from uuid import uuid4
+from uuid import UUID, uuid4
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from pytune_data.minio_client import minio_client, TEMP_BUCKET_NAME
 from io import BytesIO
@@ -20,25 +21,69 @@ from fastapi import UploadFile, File, HTTPException
 from app.services.piano_guess_model import guess_model_from_images as guess_model_service
 from app.services.piano_report import generate_piano_summary_pdf
 from app.utils.upload_images import upload_images_to_miniofiles
-from pytune_data.piano_identification_session import create_identification_session, update_identification_session
+from pytune_data.piano_identification_session import create_identification_session, get_identification_session, update_identification_session
 from app.services.image_labelling import label_images_from_session
+from app.utils.context_helpers import build_context_snapshot, build_model_data
+from app.services.email_sender import send_piano_summary_email
+from pytune_helpers.pdf import upload_pdf_and_get_url
+from simple_logger import get_logger, logger, SimpleLogger
+
+
+logger: SimpleLogger = logger or get_logger() 
 
 router = APIRouter(tags=["Photos"])
 
-@router.post("/pianos/report", response_class=FileResponse)
-async def generate_report_pdf(data: PianoGuessInput, files: List[UploadFile] = File(...)):
-    urls = await upload_images_to_miniofiles(files)
-    report_data = await guess_model_service(data, urls)
+# ✅ Nouveau endpoint FastAPI pour envoyer le rapport par email
 
-    # 📄 Génère le PDF
-    pdf_bytes = generate_piano_summary_pdf(report_data, urls)
+import os
 
-    # Optionnel: stockage temporaire sur disque
-    path = "/tmp/piano_report.pdf"
-    with open(path, "wb") as f:
-        f.write(pdf_bytes)
+@router.post("/api/send_piano_report/{session_id}")
+async def send_piano_report(
+    session_id: UUID,
+    user: UserOut = Depends(get_current_user)
+):
+    session = await get_identification_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
 
-    return FileResponse(path, filename="piano_report.pdf", media_type="application/pdf")
+    if not session.image_urls:
+        raise HTTPException(status_code=400, detail="No images found for this session")
+
+    report_data = {
+        "brand": session.model_hypothesis.get("brand") or session.photo_labels[0].get("brand") if session.photo_labels else None,
+        "year_estimated": session.model_hypothesis.get("year_estimated"),
+        "model_hypothesis": session.model_hypothesis,
+        "serial_number": session.model_hypothesis.get("serial_number"),
+        "category": session.model_hypothesis.get("category"),
+        "type": session.model_hypothesis.get("type"),
+        "size_cm": session.model_hypothesis.get("size_cm"),
+        "nb_notes": session.model_hypothesis.get("nb_notes"),
+    }
+
+    try:
+        # ⬇️ Téléchargement
+        local_image_paths = []
+        local_image_paths = await download_images_locally(session.image_urls)
+
+        # 📄 Génération PDF
+        pdf_buffer = await generate_piano_summary_pdf(report_data, local_image_paths, session.photo_labels)
+        # 🔼 Upload + URL
+        pdf_url = await upload_pdf_and_get_url(pdf_buffer)
+        await update_identification_session(session_id=session.id, report_url = pdf_url)
+    finally:
+        # 🧹 Nettoyage fichiers temporaires
+        for path in local_image_paths:
+            try:
+                os.remove(path)
+            except Exception:
+                pass  # silencieux mais tu peux logguer si besoin
+
+    try:
+        await send_piano_summary_email(user=user, pdf_url=pdf_url, piano_info=report_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Email sending failed: {e}")
+
+    return JSONResponse({"success": True})
 
 
 @router.post("/pianos/guess_model")
@@ -54,11 +99,11 @@ async def guess_model_from_images(data: PianoGuessInput, files: List[UploadFile]
             compressed = compress_image(raw)
             fname = f"guess_model_{uuid4().hex}_{file.filename.replace(' ', '_')}"
             minio_client.client.put_object(
-                PIANO_SESSION_BUCKET, fname, compressed,
+                PIANO_SESSION_IMAGES_BUCKET, fname, compressed,
                 length=compressed.getbuffer().nbytes,
                 content_type="image/jpeg"
             )
-            url = f"https://minio.pytune.com/{PIANO_SESSION_BUCKET}/{fname}"
+            url = f"https://minio.pytune.com/{PIANO_SESSION_IMAGES_BUCKET}/{fname}"
             urls.append(url)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
@@ -82,95 +127,83 @@ async def guess_model_from_images(data: PianoGuessInput, files: List[UploadFile]
         "photos": [f.filename for f in files]
     }
 
-
-@router.post("/photos/identify/{manufacturer_id}", response_model=AgentResponse, )
-async def identify_from_photos(manufacturer_id: int, files: list[UploadFile] = File(...),
-    user: UserOut = Depends(get_current_user)):
-
+@router.post("/photos/identify/{manufacturer_id}", response_model=AgentResponse)
+async def identify_from_photos(
+    manufacturer_id: int,
+    files: list[UploadFile] = File(...),
+    user: UserOut = Depends(get_current_user)
+):
     if not files:
         raise HTTPException(status_code=400, detail="No files provided")
 
-    # 📥 Upload images to MinIO (temp)
+    # 📥 Upload to MinIO + collect metadata
     photo_metadata = []
     urls = []
+
     for file in files:
         try:
             raw = await file.read()
-            compressed, metadata = compress_image_and_extract_metadata(raw)
+            compressed, safe_metadata = compress_image_and_extract_metadata(raw)
+
             fname = f"identify_{uuid4().hex}_{file.filename.replace(' ', '_')}"
             minio_client.client.put_object(
-                PIANO_SESSION_BUCKET, fname, compressed,
+                PIANO_SESSION_IMAGES_BUCKET, fname, compressed,
                 length=compressed.getbuffer().nbytes,
                 content_type="image/jpeg"
             )
-            url = f"https://minio.pytune.com/{PIANO_SESSION_BUCKET}/{fname}"
+
+            url = f"https://minio.pytune.com/{PIANO_SESSION_IMAGES_BUCKET}/{fname}"
             urls.append(url)
 
-             # Ajoute à la liste metadata associée
-            metadata["filename"] = file.filename
-            metadata["minio_url"] = url
-            photo_metadata.append(metadata)
-                
+            safe_metadata["filename"] = file.filename
+            safe_metadata["minio_url"] = url
+            photo_metadata.append(safe_metadata)
+
         except Exception as e:
+            logger.warning(f"Upload failed for {file.filename}: {e}")
             raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
 
-    # 🧠 Identification du piano
+    # 🛡️ Clean entire list before DB insert
+    photo_metadata = safe_json(photo_metadata)
+
+    # 🧠 Identification par vision
     try:
-        result = await identify_piano_from_images(manufacturer_id, urls, image_metadata=photo_metadata)
+        result = await identify_piano_from_images(
+            manufacturer_id, urls, image_metadata=photo_metadata
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Identification failed: {e}")
 
-    # ✅ ICI —> Création de la session
+    # 🗂️ Création de session
     try:
+        context_snapshot = build_context_snapshot(result, manufacturer_id)
         session = await create_identification_session(
             user_id=user.id,
             image_urls=urls,
             photo_metadata=photo_metadata,
-            model_hypothesis=None,  # on le mettra après
+            model_hypothesis=None,
             photo_labels=None,
-            context_snapshot={
-                "manufacturer_id": manufacturer_id,
-                "age_method": result.get("age_method"),
-                "source": "photos.identify",
-                "inferred_scene": result.get("extra", {}).get("scene_description"),
-                "sheet_music": result.get("extra", {}).get("sheet_music"),
-                "estimated_value_eur": result.get("extra", {}).get("estimated_value_eur"),
-                "value_confidence": result.get("extra", {}).get("value_confidence"),
-            }
+            context_snapshot=context_snapshot,
         )
-        photo_labels = await label_images_from_session(session.id) 
-        await update_identification_session(session.id, photo_labels=photo_labels)
+
+        raw_metadata, cleaned_labels = await label_images_from_session(session.id)
+        await update_identification_session(session.id, photo_labels=cleaned_labels, metadata=raw_metadata)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Session creation failed: {e}")
 
-
-    # ⭐ Tentative de deviner le modèle (guess_model_from_images)
+    # 🎯 Devine le modèle
     try:
-        sheet_music_title = (result.get("extra", {}).get("sheet_music") or {}).get("title")
-        model_data = {
-            "brand": result.get("brand"),
-            "distributor": result.get("distributor"),
-            "serial_number": result.get("serial_number"),
-            "year_estimated": result.get("age"),
-            "category": result.get("category"),
-            "type": result.get("type"),
-            "size_cm": result.get("size_cm"),
-            "nb_notes": result.get("nb_notes"),
-            "sheet_music": sheet_music_title,
-            "scene_description": result.get("extra", {}).get("scene_description"),
-            "photos": result.get("extra", {}).get("photos", []),  # ou []
-        }
+        model_data = build_model_data(result)
         model_hypothesis = await guess_model_service(
             data=model_data,
             image_urls=urls
         )
         await update_identification_session(session.id, model_hypothesis=model_hypothesis)
     except Exception as e:
-        print(f"[WARN] Model hypothesis failed: {e}")
+        logger.warning(f"Model hypothesis failed: {e}")
         model_hypothesis = {}
 
-    # 🧾 Construction réponse agent
-    msg_parts = []
+    # 🧾 Réponse agent
     fp = {
         "brand": result.get("brand"),
         "category": result.get("category"),
@@ -181,14 +214,17 @@ async def identify_from_photos(manufacturer_id: int, files: list[UploadFile] = F
         "nb_notes": result.get("nb_notes") or 88,
     }
 
-    if fp["brand"]: msg_parts.append(f"- Brand: **{fp['brand']}**")
-    if fp["category"]: msg_parts.append(f"- Category: {fp['category'].capitalize()}")
-    if fp["type"]: msg_parts.append(f"- Type: {fp['type']}")
-    if fp["size_cm"]: msg_parts.append(f"- Size: {fp['size_cm']} cm")
-    if fp["serial_number"]: msg_parts.append(f"- Serial number: {fp['serial_number']}")
-    if fp["year_estimated"]: msg_parts.append(f"- Estimated year: {fp['year_estimated']}")
-
+    msg_parts = [
+        f"- Brand: **{fp['brand']}**" if fp["brand"] else None,
+        f"- Category: {fp['category'].capitalize()}" if fp["category"] else None,
+        f"- Type: {fp['type']}" if fp["type"] else None,
+        f"- Size: {fp['size_cm']} cm" if fp["size_cm"] else None,
+        f"- Serial number: {fp['serial_number']}" if fp["serial_number"] else None,
+        f"- Estimated year: {fp['year_estimated']}" if fp["year_estimated"] else None,
+    ]
+    msg_parts = [m for m in msg_parts if m]
     message = "🎹 Photo analysis result:\n" + "\n".join(msg_parts)
+
     if result.get("age_method"):
         message += f"\n\n🧠 {result['age_method']}"
 
@@ -201,7 +237,7 @@ async def identify_from_photos(manufacturer_id: int, files: list[UploadFile] = F
                 "scene_description": result.get("extra", {}).get("scene_description"),
                 "estimated_value_eur": result.get("extra", {}).get("estimated_value_eur"),
                 "value_confidence": result.get("extra", {}).get("value_confidence"),
-                "model_hypothesis": model_hypothesis or None  
+                "model_hypothesis": model_hypothesis or None
             },
             "metadata": {
                 "extracted_from_image": True,

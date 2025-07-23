@@ -2,16 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Your Piano Summary Report</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your PyTune Piano Report</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background-color: #f7f9fa;
+      background-color: #f4f4f4;
       margin: 0;
       padding: 0;
     }
     .container {
-      max-width: 620px;
+      max-width: 600px;
       margin: 40px auto;
       padding: 24px;
       background-color: #ffffff;
@@ -20,13 +21,8 @@
     }
     h1 {
       font-size: 24px;
-      color: #2c3e50;
-      margin-bottom: 10px;
-    }
-    h2 {
-      font-size: 18px;
       color: #4CAF50;
-      margin-top: 24px;
+      margin-bottom: 10px;
     }
     p {
       font-size: 16px;
@@ -36,6 +32,16 @@
     .highlight {
       font-weight: bold;
       color: #2c3e50;
+    }
+    .btn {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 12px 24px;
+      background-color: #4CAF50;
+      color: white;
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 16px;
     }
     .footer {
       margin-top: 40px;
@@ -49,33 +55,34 @@
       border-radius: 6px;
       margin: 12px 0;
       font-size: 15px;
-      line-height: 1.5;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>🎹 Your Piano Report</h1>
+    <h1>Your PyTune Piano Report is Ready 🎹</h1>
     <p>Hello {{ user }},</p>
-    <p>We’ve completed the analysis of your piano based on the photos you submitted. Below is a summary of our findings:</p>
+    <p>Thank you for using <strong>PyTune</strong> to analyze your piano. Based on the photos you submitted, we've compiled a full summary of our findings.</p>
 
     <div class="block">
       <p><span class="highlight">Brand:</span> {{ brand }}</p>
       <p><span class="highlight">Estimated Year:</span> {{ year }}</p>
-      <p><span class="highlight">Model (Hypothesis):</span> {{ model }}{% if variant %} — <em>{{ variant }}</em>{% endif %}</p>
+      <p><span class="highlight">Model Hypothesis:</span> {{ model }}{% if variant %} — <em>{{ variant }}</em>{% endif %}</p>
     </div>
 
     {% if description %}
-    <h2>📖 Description</h2>
     <p>{{ description }}</p>
     {% endif %}
 
-    <p>📎 The complete PDF summary is attached to this email.</p>
+    <p>📎 You can download your complete PDF summary here:</p>
+    <p style="text-align: center;">
+      <a href="{{ pdf_url }}" class="btn" target="_blank">📥 Download Full Report</a>
+    </p>
 
-    <p>If you have any questions or would like a second opinion, feel free to reply to this message.</p>
+    <p>If you have any questions or want to discuss the result, feel free to reply to this email — our team is here to help.</p>
 
     <div class="footer">
-      <p>Warm regards,<br>The PyTune Team</p>
+      <p>Musically yours,<br>The PyTune Team</p>
     </div>
   </div>
 </body>

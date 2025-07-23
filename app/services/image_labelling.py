@@ -1,3 +1,4 @@
+import datetime
 from uuid import UUID
 from pytune_data.piano_identification_session import (
     get_identification_session,
@@ -5,6 +6,8 @@ from pytune_data.piano_identification_session import (
 )
 from pytune_llm.llm_vision import label_images_from_urls
 from app.services.sanitizers import sanitize_labels
+from datetime import datetime, timezone
+
 
 async def label_images_from_session(session_id: UUID) -> list[dict]:
     session = await get_identification_session(session_id)
@@ -31,6 +34,15 @@ async def label_images_from_session(session_id: UUID) -> list[dict]:
 
     photo_labels = await label_images_from_urls(image_data)
     cleaned_labels = [sanitize_labels(label) for label in photo_labels]
-    #await update_identification_session(session_id, photo_labels=cleaned_labels)
+    metadata = {
+        "llm_model": "gpt-4o",
+        "prompt_version": "labeling-v1",
+        "pipeline_version": "2025-07",
+        "labeling_completed": True,
+        "labeling_timestamp": datetime.now(timezone.utc).isoformat(),
+        "num_images": len(cleaned_labels),
+        "has_serial_number_count": sum(1 for lbl in cleaned_labels if lbl.get("has_serial_number"))
+    }
+        #await update_identification_session(session_id, photo_labels=cleaned_labels) à faire après
 
-    return cleaned_labels
+    return metadata, cleaned_labels

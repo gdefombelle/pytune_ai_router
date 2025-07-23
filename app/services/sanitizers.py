@@ -1,3 +1,6 @@
+
+
+from PIL.TiffImagePlugin import IFDRational
 def sanitize_labels(raw: dict) -> dict:
     """
     Nettoie et normalise les champs retournés par label_image_from_url
@@ -23,3 +26,14 @@ def sanitize_labels(raw: dict) -> dict:
         "content": content if isinstance(content, list) else [],
         "notes": str(notes)[:300]  # limite défensive
     }
+
+
+def sanitize_exif(obj):
+    if isinstance(obj, IFDRational):
+        return float(obj)
+    elif isinstance(obj, dict):
+        return {k: sanitize_exif(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [sanitize_exif(v) for v in obj]
+    else:
+        return obj
