@@ -100,31 +100,37 @@ async def evaluate_agent(
     context = await resolve_user_context(user, extra=base_context)
     enriched_context = enrich_context(context)
 
-    # ✅ Fusionne tous les blocs de snapshot (agnostique)
-    snapshot = extra_context.get("agent_form_snapshot")
-    if snapshot:
-        for key, value in snapshot.items():
-            enriched_context[key] = {
-                **enriched_context.get(key, {}),
-                **value,
-            }
+    # ✅ Récupère le snapshot AVANT de l'utiliser
+    snapshot = extra_context.get("agent_form_snapshot", {})
 
-        # 🔁 Injecte les dont_know_flags dans first_piano (pour matcher le YAML)
-        if "dont_know_flags" in snapshot and "first_piano" in enriched_context:
-            for k, v in snapshot["dont_know_flags"].items():
-                if k not in enriched_context["first_piano"]:
-                    enriched_context["first_piano"][k] = v
+    # ✅ Fusionne tous les blocs de snapshot (agnostique)
+    for key, value in snapshot.items():
+        old = enriched_context.get(key, {})
+        if not isinstance(old, dict):
+            print(f"⚠️ Skipping merge: enriched_context[{key}] is not a dict (got {type(old).__name__})")
+            continue
+        if not isinstance(value, dict):
+            print(f"⚠️ Skipping merge: snapshot[{key}] is not a dict (got {type(value).__name__})")
+            continue
+
+        enriched_context[key] = {
+            **old,
+            **value,
+        }
+
+    # 🔁 Injecte les dont_know_flags dans first_piano (pour matcher le YAML)
+    if "dont_know_flags" in snapshot and "first_piano" in enriched_context:
+        for k, v in snapshot["dont_know_flags"].items():
+            if k not in enriched_context["first_piano"]:
+                enriched_context["first_piano"][k] = v
 
     # 💾 Enregistre le piano si confirmé mais pas encore sauvegardé
-    snapshot = extra_context.get("agent_form_snapshot", {})
     first_piano = snapshot.get("first_piano") or enriched_context.get("first_piano", {})
-
     save_response = None
     if first_piano.get("confirmed") and not first_piano.get("saved"):
         email = enriched_context.get("email")
         if email:
             save_response = await save_piano_handler(context=enriched_context, email=email)
-            # 👇 Injecte dans le contexte directement pour policy + backend
             enriched_context["first_piano"] = {
                 **enriched_context.get("first_piano", {}),
                 **save_response.context_update.get("first_piano", {}),
@@ -145,7 +151,6 @@ async def evaluate_agent(
                 **save_response.context_update
             }
 
-
     # 🧠 Historisation mémoire
     if conversation_id and response.message:
         try:
@@ -155,6 +160,7 @@ async def evaluate_agent(
             print(f"⚠️ Failed to append assistant message from /evaluate: {e}")
 
     return response
+
 
 @router.post("/{agent_name}/message", response_model=AgentResponse)
 async def agent_message(

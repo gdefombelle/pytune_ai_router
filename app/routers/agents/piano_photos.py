@@ -6,8 +6,10 @@ from pytune_auth_common.models.schema import UserOut
 from pytune_auth_common.services.auth_checks import get_current_user
 from app.models.policy_model import AgentResponse
 from app.services.piano_identify_from_images_service import identify_piano_from_images  # à adapter selon ton projet
+from pytune_data.crud import get_user_by_id
 from pytune_data.minio_client import PIANO_SESSION_IMAGES_BUCKET, minio_client, TEMP_BUCKET_NAME
-from pytune_data.models import User
+from pytune_data.models import PianoIdentificationSession, User, UserPianoModel
+from pytune_data.schemas import UserPianoModelCreate
 from pytune_helpers.images import compress_image, compress_image_and_extract_metadata, download_images_locally, safe_json
 from io import BytesIO
 from uuid import UUID, uuid4
@@ -29,7 +31,7 @@ from pytune_helpers.pdf import upload_pdf_and_get_url
 from simple_logger import get_logger, logger, SimpleLogger
 
 
-logger: SimpleLogger = logger or get_logger() 
+logger: SimpleLogger = get_logger() 
 
 router = APIRouter(tags=["Photos"])
 
@@ -205,6 +207,7 @@ async def identify_from_photos(
 
     # 🧾 Réponse agent
     fp = {
+        "manufacturer_id": result.get("manufacturer_id"),
         "brand": result.get("brand"),
         "category": result.get("category"),
         "type": result.get("type"),
@@ -272,3 +275,41 @@ async def upload_piano_photos(piano_id: int, files: list[UploadFile] = File(...)
             raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
     return {"status": "ok", "urls": uploaded_urls}
+
+@router.post("/piano/save", summary="Confirm and save user's piano model")
+async def save_user_piano_model(
+    payload: UserPianoModelCreate,
+    current_user: UserOut = Depends(get_current_user)
+):
+    try:
+        user = await get_user_by_id(current_user.id)
+        session = None
+        if payload.piano_identification_session_id:
+            session = await PianoIdentificationSession.get_or_none(id=payload.piano_identification_session_id)
+            if not session:
+                raise HTTPException(status_code=404, detail="Identification session not found")
+
+        user_piano = await UserPianoModel.create(
+            user=user,
+            pianomodel_id=payload.pianomodel_id,
+            manufacturer_id=payload.manufacturer_id,
+            name=payload.name,
+            location=payload.location,
+            serial_number=payload.serial_number,
+            manufacture_year=payload.manufacture_year,
+            purchase_year=payload.purchase_year,
+            notes=payload.notes,
+            model_name=payload.model_name,
+            kind=payload.kind,
+            type_label=payload.type_label,
+            size_cm=payload.size_cm,
+            keys=payload.keys,
+            extra_data=payload.extra_data or {},
+            piano_identification_session_id=payload.piano_identification_session_id
+        )
+
+        return {"success": True, "piano_id": user_piano.id}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save piano: {str(e)}")
+
