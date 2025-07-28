@@ -3,6 +3,7 @@ from typing import Dict, Optional
 from uuid import UUID
 from fastapi import Request, HTTPException
 from pytune_auth_common.models.schema import UserOut
+from pytune_llm.task_reporting.reporter import TaskReporter
 from app.models.policy_model import AgentResponse
 from app.core.context_resolver import resolve_user_context
 from app.core.context_enrichment import enrich_context
@@ -45,7 +46,11 @@ def should_transition_to_conversation(first_piano: dict) -> bool:
     )
 
 
-async def piano_agent_handler(agent_name: str, user_message: str, context: dict) -> AgentResponse:
+async def piano_agent_handler(
+        agent_name: str,
+        user_message: str, 
+        context: dict,
+        reporter: Optional[TaskReporter]) -> AgentResponse:
     conversation_id_str = context.get("conversation_id")
     first_piano = context.get("first_piano", {})
 
@@ -95,8 +100,8 @@ async def piano_agent_handler(agent_name: str, user_message: str, context: dict)
             model="gpt-3.5-turbo"
         )
 
-    response = await load_policy_and_resolve(agent_name, context)
-
+    response = await load_policy_and_resolve(agent_name, context, reporter=reporter)
+    reporter and await reporter.step("🤖 Running policy logic")
     if not response.context_update or not response.context_update.get("first_piano"):
         try:
             extracted = extract_structured_piano_data(response.message or "")
@@ -165,7 +170,8 @@ async def piano_agent_handler(agent_name: str, user_message: str, context: dict)
             context_update["first_piano"]["type"] = inferred_type
 
     if brand:
-        brand_info = await resolve_brand_fields(brand, email)
+        reporter and await reporter.step("🔍 Resolving brand")
+        brand_info = await resolve_brand_fields(brand, email, reporter=reporter)
         context_update["brand_resolution"] = brand_info["brand_resolution"]
         manufacturer_id = brand_info["manufacturer_id"]
         corrected = brand_info["corrected"]
@@ -185,12 +191,14 @@ async def piano_agent_handler(agent_name: str, user_message: str, context: dict)
             context_update["first_piano"]["brand"] = corrected
 
     if manufacturer_id:
-        year_info = await resolve_serial_year(first_piano, manufacturer_id, corrected or brand)
+        reporter and await reporter.step("📅 Estimating year")
+        year_info = await resolve_serial_year(first_piano, manufacturer_id, corrected or brand, reporter=reporter)
         if year_info:
             context_update["first_piano"].update(year_info)
 
     if manufacturer_id and first_piano.get("model"):
-        model_info = await resolve_model_fields(first_piano, manufacturer_id)
+        reporter and await reporter.step("🔧 Resolving model")
+        model_info = await resolve_model_fields(first_piano, manufacturer_id, reporter=reporter)
 
         if "first_piano" in model_info:
             enriched_fp = model_info["first_piano"]
@@ -216,7 +224,7 @@ async def piano_agent_handler(agent_name: str, user_message: str, context: dict)
 
     response.context_update = context_update
     existing_message = response.message or ""
-
+    reporter and await reporter.step("✅ Finalizing piano insights")
     if "first_piano" in context_update:
         finalize_response_message(response, context_update)
 
@@ -290,29 +298,3 @@ async def piano_agent_start_handler(
 
     return response
 
-async def save_piano_handler(context: Dict, email: str = None) -> AgentResponse:
-    first_piano = context.get("first_piano", {})
-    email = context.get("email", email)
-
-    if not first_piano or not email:
-        return AgentResponse(message="❌ Missing required piano or user information.")
-
-    # 🧹 Optionnel : nettoyage des champs
-    normalized = normalize_piano_data(first_piano)
-
-    print("💾 Simulating piano save for user:", email)
-    # Ici, tu pourrais logger, stocker dans Redis, ou ignorer
-
-    return AgentResponse(
-        message="✅ Your piano has been saved!",
-        context_update={
-            "first_piano": {
-                **normalized,
-                "saved": True  # ← te permet d’éviter de re-sauver
-            }
-        },
-        actions=[
-            {"suggest_action": "Upload photos", "trigger_event": "trigger_upload"},
-            {"suggest_action": "Skip this step", "trigger_event": "skip_upload"}
-        ]
-    )

@@ -2,6 +2,7 @@ import asyncio
 from datetime import datetime
 import json
 
+from pytune_llm.task_reporting.reporter import TaskReporter
 from unidecode import unidecode
 from pytune_data.db import init
 from pytune_data.piano_data_service import search_manufacturer, search_manufacturer_full
@@ -22,7 +23,8 @@ from app.core.prompt_builder import render_prompt_template
 async def identify_piano_from_images(
     manufacturer_id: Optional[int],
     image_urls: List[str],
-    image_metadata: Optional[list[dict]] = None
+    image_metadata: Optional[list[dict]] = None,
+    reporter: Optional[TaskReporter] = None
 ) -> dict:
     try:
         manufacturer_name = (
@@ -47,7 +49,8 @@ async def identify_piano_from_images(
         llm_response = await call_llm_vision(
             prompt=prompt,
             image_urls=image_urls,
-            metadata={"llm_model": "gpt-4o"}
+            metadata={"llm_model": "gpt-4o"},
+            reporter=reporter
         )
 
         await asyncio.sleep(0.01)
@@ -109,7 +112,8 @@ async def identify_piano_from_images(
             manufacturer_id=resolved_id,
             serial_number=serial_number,
             brand_name=resolved_brand_name,
-            image_urls=image_urls
+            image_urls=image_urls,
+            reporter=reporter
         )
 
         return {

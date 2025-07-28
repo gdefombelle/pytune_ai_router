@@ -1,5 +1,7 @@
 from typing import Optional, Dict
 
+from pytune_llm.task_reporting.reporter import TaskReporter
+
 from app.utils.dontknow_utils import humanize_dont_know_list
 from app.services.piano_extract import make_readable_message_from_extraction
 from .piano_extract import render_warnings, resolve_type
@@ -8,12 +10,15 @@ from .brand_resolver import resolve_brand_name
 from .age_resolver import resolve_age
 
 
-async def resolve_model_fields(first_piano: dict, manufacturer_id: int) -> dict:
+async def resolve_model_fields(
+        first_piano: dict, 
+        manufacturer_id: int,
+        reporter: Optional[TaskReporter]=None) -> dict:
     model = first_piano.get("model")
     if not model:
         return {}
 
-    model_result = await resolve_model_name(model, first_piano, manufacturer_id)
+    model_result = await resolve_model_name(model, first_piano, manufacturer_id, reporter=reporter)
 
     update = {
         "model_resolution": model_result,  # ✅ Toujours renvoyé
@@ -101,8 +106,11 @@ async def resolve_model_fields(first_piano: dict, manufacturer_id: int) -> dict:
     return update
 
 
-async def resolve_brand_fields(brand: str, email: str) -> dict:
-    result = await resolve_brand_name(brand, email)
+async def resolve_brand_fields(
+        brand: str, 
+        email: str, 
+        reporter: Optional[TaskReporter]) -> dict:
+    result = await resolve_brand_name(brand, email, reporter=reporter)
     corrected = (
         result.get("matched_name") or
         result.get("corrected") or
@@ -120,7 +128,11 @@ async def resolve_brand_fields(brand: str, email: str) -> dict:
     }
 
 
-async def resolve_serial_year(first_piano: dict, manufacturer_id: Optional[int], brand: Optional[str]) -> dict:
+async def resolve_serial_year(
+        first_piano: dict, 
+        manufacturer_id: Optional[int], 
+        brand: Optional[str],
+        reporter: Optional[TaskReporter] = None) -> dict:
     serial = first_piano.get("serial_number")
     if not manufacturer_id:
         return {}

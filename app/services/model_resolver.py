@@ -1,13 +1,18 @@
 import json
 import re
-from typing import Dict
+from typing import Dict, Optional
 
 from pytune_llm.llm_connector import call_llm
+from pytune_llm.task_reporting.reporter import TaskReporter
 from app.core.prompt_builder import render_prompt_template
 from pytune_data.piano_data_service import search_model_full, get_manufacturer_name
 
 
-async def resolve_model_name(model_name: str, first_piano: dict, manufacturer_id: int) -> Dict:
+async def resolve_model_name(
+        model_name: str, 
+        first_piano: dict, 
+        manufacturer_id: int,
+        reporter: Optional[TaskReporter]) -> Dict:
     """
     Résolution du nom de modèle de piano :
     1. Recherche dans la base PyTune
@@ -50,7 +55,8 @@ async def resolve_model_name(model_name: str, first_piano: dict, manufacturer_id
         llm_output = await call_llm(
             prompt=prompt,
             context={"source": "model_resolver", "attempted": model_name},
-            metadata={"llm_backend": "openai", "llm_model": "gpt-4o"}
+            metadata={"llm_backend": "openai", "llm_model": "gpt-4o"},
+            reporter=reporter
         )
 
         match = re.search(r"{[\s\S]+?}\s*", llm_output)

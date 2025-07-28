@@ -10,12 +10,11 @@ from pytune_auth_common.models.schema import UserOut
 from pytune_auth_common.services.auth_checks import get_current_user
 from app.models.policy_model import AgentResponse
 from pytune_chat.store import append_message
+from pytune_llm.task_reporting.reporter import TaskReporter
 
 # ✅ Handlers spécialisés
 from app.handlers.piano_agent_handler import (
     piano_agent_handler,
-    piano_agent_start_handler,
-    save_piano_handler
 )
 from app.utils.context_helpers import prepare_enriched_context
 from app.utils.piano_merge import merge_first_piano_data
@@ -29,28 +28,35 @@ async def start_agent(
     extra_context: dict = Body(..., embed=True),
     user: UserOut = Depends(get_current_user),
 ):
+    # 🧠 Initialize the task reporter (4 steps total here, adjust if needed)
+    reporter = TaskReporter(agent_name, auto_progress=True)
+
+    # Step 1: Load agent policy
+    await reporter.step("📥 Loading policy")
     policy = load_yaml(agent_name)
     use_memory = policy.get("metadata", {}).get("memory") is True
 
-    # 🧠 Crée une conversation si mémoire activée
+    # Step 2: Create memory-based conversation if required
     conversation_id = None
+    await reporter.step("🧠 Creating memory" if use_memory else "🧠 Skipping memory")
     if use_memory:
         from pytune_chat.store import create_conversation
         conv = await create_conversation(user.id, topic=agent_name)
         conversation_id = str(conv.id)
 
-    # 🔧 Résout et enrichit le contexte utilisateur
+    # Step 3: Resolve full context (user + environment + extra)
+    await reporter.step("📥 Resolving context")
     full_context = await resolve_user_context(user, extra=extra_context)
     enriched_context = enrich_context(full_context)
 
-    # Injecte le conversation_id si applicable
     if conversation_id:
         enriched_context["conversation_id"] = conversation_id
 
-    # ✅ Appelle le bloc `start` ou fallback vers policy loader
-    response = await start_policy(agent_name, enriched_context)
+    # Step 4: Run the `start` block from policy
+    await reporter.step("🚀 Launching agent")
+    response = await start_policy(agent_name, enriched_context, reporter=reporter)
 
-    # 🏷️ Injecte le titre du YAML si présent
+    # Optionally inject agent title (if defined in YAML)
     title = policy.get("metadata", {}).get("title")
     if title:
         response.meta = {
@@ -58,22 +64,26 @@ async def start_agent(
             "title": title
         }
 
-    # 🧠 Historise le message assistant s’il y en a un
+    # Store the assistant’s first message in memory if available
     if conversation_id and response.message:
         from pytune_chat.store import append_message
         try:
             await append_message(UUID(conversation_id), "assistant", response.message)
         except Exception as e:
-            print(f"⚠️ Failed to log initial assistant message: {e}")
+            print(f"⚠️ Failed to log assistant message: {e}")
 
-    # 🔁 Retourne conversation_id dans la meta si présent
+    # Always return conversation ID if created
     if conversation_id:
         response.meta = {
             **response.meta,
             "conversation_id": conversation_id
         }
 
+    # ✅ Mark task as done
+    await reporter.done(delay_after=2)
+
     return response
+
 
 @router.post("/{agent_name}/evaluate", response_model=AgentResponse)
 async def evaluate_agent(
@@ -85,11 +95,12 @@ async def evaluate_agent(
         payload = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
-
+    
+    reporter = TaskReporter(agent_name, auto_progress=True)
+    await reporter.step("📦 Resolving context")
     extra_context = payload.get("extra_context", {})
     conversation_id = extra_context.get("conversation_id")
 
-    # 🔧 Construit le contexte de base (utilisateur + extra)
     base_context = {
         **extra_context,
         "user_input": "",
@@ -118,39 +129,11 @@ async def evaluate_agent(
             **value,
         }
 
-    # 🔁 Injecte les dont_know_flags dans first_piano (pour matcher le YAML)
-    if "dont_know_flags" in snapshot and "first_piano" in enriched_context:
-        for k, v in snapshot["dont_know_flags"].items():
-            if k not in enriched_context["first_piano"]:
-                enriched_context["first_piano"][k] = v
-
-    # 💾 Enregistre le piano si confirmé mais pas encore sauvegardé
-    first_piano = snapshot.get("first_piano") or enriched_context.get("first_piano", {})
-    save_response = None
-    if first_piano.get("confirmed") and not first_piano.get("saved"):
-        email = enriched_context.get("email")
-        if email:
-            save_response = await save_piano_handler(context=enriched_context, email=email)
-            enriched_context["first_piano"] = {
-                **enriched_context.get("first_piano", {}),
-                **save_response.context_update.get("first_piano", {}),
-            }
-
     # 🤖 Exécution de la policy
-    response = await load_policy_and_resolve(agent_name, enriched_context)
+    await reporter.step("📦 Resolving policy")
+    response = await load_policy_and_resolve(agent_name, enriched_context, reporter=reporter)
 
-    # ✅ Si save_response a un message/action → fusionne dans la réponse principale
-    if save_response:
-        if save_response.message:
-            response.message = (response.message or "") + f"\n\n{save_response.message}"
-        if save_response.actions:
-            response.actions = save_response.actions
-        if save_response.context_update:
-            response.context_update = {
-                **(response.context_update or {}),
-                **save_response.context_update
-            }
-
+    await reporter.step("✅ Finalizing")
     # 🧠 Historisation mémoire
     if conversation_id and response.message:
         try:
@@ -158,7 +141,7 @@ async def evaluate_agent(
             await append_message(uuid_, "assistant", response.message)
         except Exception as e:
             print(f"⚠️ Failed to append assistant message from /evaluate: {e}")
-
+    await reporter.done(delay_after=0.1)
     return response
 
 
@@ -168,18 +151,25 @@ async def agent_message(
     request: Request,
     user: UserOut = Depends(get_current_user),
 ):
+    reporter = TaskReporter(agent_name, auto_progress=True)
+
     payload = await request.json()
     message = payload.get("message", "")
     extra_context = payload.get("extra_context", {})
 
-    # 🧠 Centralise ici le contexte enrichi
+    await reporter.step("📥 Preparing context")
     context = await prepare_enriched_context(user, agent_name, message, extra_context)
-    
+
     if agent_name == "piano_agent":
-        ret = await piano_agent_handler(agent_name, message, context)
+        await reporter.step("🎹 Piano agent handler")
+        ret = await piano_agent_handler(agent_name, message, context, reporter=reporter)
+        await reporter.done()
         return ret
 
-    return await load_policy_and_resolve(agent_name, context)
+    await reporter.step("🧠 Running policy")
+    response = await load_policy_and_resolve(agent_name, context, reporter=reporter)
+    await reporter.done()
+    return response
 
 @router.post("/{agent_name}/flags", response_model=AgentResponse)
 async def submit_flags(
@@ -187,6 +177,9 @@ async def submit_flags(
     request: Request,
     user: UserOut = Depends(get_current_user),
 ):
+    reporter = TaskReporter(agent_name, total_steps=1, auto_progress=True)
+    await reporter.step("🏁 Handling flags")
+
     try:
         payload = await request.json()
     except Exception:
@@ -208,6 +201,7 @@ async def submit_flags(
         except Exception as e:
             print(f"⚠️ Failed to append assistant message from /flags: {e}")
 
+    await reporter.done()
     return AgentResponse(
         message=msg,
         context_update={

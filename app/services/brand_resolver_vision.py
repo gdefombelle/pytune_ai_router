@@ -1,4 +1,5 @@
 from typing import Optional, Tuple
+from pytune_llm.task_reporting.reporter import TaskReporter
 from unidecode import unidecode
 
 from pytune_data.db import init
@@ -26,6 +27,7 @@ async def create_manufacturer_from_llm_vision(brand_name: str) -> ManufacturerIn
 async def resolve_manufacturer_vision(
     brand_from_llm: Optional[str],
     brand_conf: Optional[int] = 0,
+    reporter: Optional[TaskReporter]=None
 ) -> Tuple[Optional[int], Optional[str], Optional[dict]]:
     """
     Résout un nom de marque détecté par LLM (image), avec fallback si inconnu.

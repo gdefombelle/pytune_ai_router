@@ -1,5 +1,8 @@
 import datetime
+from typing import Optional
 from uuid import UUID
+
+from pytune_llm.task_reporting.reporter import TaskReporter
 from pytune_data.piano_identification_session import (
     get_identification_session,
     update_identification_session
@@ -9,7 +12,9 @@ from app.services.sanitizers import sanitize_labels
 from datetime import datetime, timezone
 
 
-async def label_images_from_session(session_id: UUID) -> list[dict]:
+async def label_images_from_session(
+        session_id: UUID,
+        reporter: Optional[TaskReporter]) -> list[dict]:
     session = await get_identification_session(session_id)
     if not session or not session.image_urls:
         raise ValueError(f"No images found for session_id={session_id}")

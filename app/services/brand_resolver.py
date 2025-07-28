@@ -1,10 +1,15 @@
 import json
 import re
+from typing import Optional
 from pytune_llm.llm_connector import call_llm
+from pytune_llm.task_reporting.reporter import TaskReporter
 from pytune_data.piano_data_service import search_manufacturer, search_manufacturer_full
 
 
-async def resolve_brand_name(brand: str, email: str) -> dict:
+async def resolve_brand_name(
+        brand: str, 
+        email: str,
+        reporter: Optional[TaskReporter]) -> dict:
     """
     Résout une marque de piano :
     1. Vérifie dans la base PyTune
@@ -61,7 +66,8 @@ Example:
         response = await call_llm(
             prompt=enrichment_prompt,
             context={"source": "brand_resolver", "attempted": brand},
-            metadata={"llm_backend": "openai", "llm_model": "gpt-4o"}
+            metadata={"llm_backend": "openai", "llm_model": "gpt-4o"},
+            reporter=reporter
         )
 
         # Extraire le JSON retourné (avec ou sans bloc ```json)
@@ -102,7 +108,8 @@ Example:
         corrected = await call_llm(
             prompt=correction_prompt,
             context={"source": "brand_resolver", "brand": brand},
-            metadata={"llm_backend": "openai", "llm_model": "gpt-3.5-turbo"}
+            metadata={"llm_backend": "openai", "llm_model": "gpt-3.5-turbo"},
+            reporter=reporter
         )
 
         corrected = corrected.strip().splitlines()[0]
