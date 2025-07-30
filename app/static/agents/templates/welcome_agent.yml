@@ -32,7 +32,7 @@ conversation:
       We can try to date it and learn more together.
     actions:
       - suggest_action: "Describe my piano"
-        route_to: "/pianos"
+        route_to: "/piano-identify"
   - elif: "not last_diagnosis.exists"
     say: >
       Great! Now let’s check your piano’s acoustic condition with a short recording.
@@ -47,7 +47,7 @@ conversation:
       - or explore more info about your instrument.
     actions:
       - suggest_action: "Update my piano details"
-        route_to: "/pianos"
+        route_to: "/piano-identify"
       - suggest_action: "Check my last diagnosis"
         route_to: "/diagnosis/history"
       - suggest_action: "Start tuning"
