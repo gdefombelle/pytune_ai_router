@@ -83,7 +83,7 @@ async def identify_piano_from_images(
             sheet_music = {
                 "title": music_title,
                 "level": music_level,
-                "style": music_style
+                "style": music_style,
             }
 
         # Préparation future : ambiance / décor / objets visibles

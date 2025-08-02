@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 from typing import Optional
 from uuid import UUID
@@ -13,13 +14,18 @@ from datetime import datetime, timezone
 
 
 async def label_images_from_session(
-        session_id: UUID,
-        reporter: Optional[TaskReporter]) -> list[dict]:
+    session_id: UUID,
+    reporter: Optional[TaskReporter] = None
+) -> tuple[dict, list[dict]]:
+
     session = await get_identification_session(session_id)
     if not session or not session.image_urls:
         raise ValueError(f"No images found for session_id={session_id}")
 
-    # ⚙️ Prépare image_data selon disponibilité metadata
+    if reporter:
+        await reporter.step(f"🏷️ Labelling {len(session.image_urls)} photos in parallel")
+
+    # 🧠 Prépare image_data (avec métadonnées si dispo)
     if session.photo_metadata:
         image_data = [
             {
@@ -37,8 +43,15 @@ async def label_images_from_session(
             for url in session.image_urls
         ]
 
-    photo_labels = await label_images_from_urls(image_data)
-    cleaned_labels = [sanitize_labels(label) for label in photo_labels]
+    # ⚡️ Parallélise chaque appel LLM pour chaque image
+    async def label_one(img: dict) -> dict:
+        return await label_images_from_urls([img])  # ⬅️ garde bien comme liste
+
+    raw_labels_nested = await asyncio.gather(*(label_one(img) for img in image_data))
+    raw_labels = [lbl[0] for lbl in raw_labels_nested]  # chaque appel retourne une liste avec un seul élément
+
+    cleaned_labels = [sanitize_labels(label) for label in raw_labels]
+
     metadata = {
         "llm_model": "gpt-4o",
         "prompt_version": "labeling-v1",
@@ -48,6 +61,5 @@ async def label_images_from_session(
         "num_images": len(cleaned_labels),
         "has_serial_number_count": sum(1 for lbl in cleaned_labels if lbl.get("has_serial_number"))
     }
-        #await update_identification_session(session_id, photo_labels=cleaned_labels) à faire après
 
     return metadata, cleaned_labels

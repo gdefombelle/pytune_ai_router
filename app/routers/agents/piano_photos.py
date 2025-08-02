@@ -1,4 +1,5 @@
 # --- pytune_piano/routers/piano_photos.py ---
+import asyncio
 from typing import List
 from fastapi import Depends, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
@@ -28,6 +29,7 @@ from app.services.image_labelling import label_images_from_session
 from app.utils.context_helpers import build_context_snapshot, build_model_data
 from app.services.email_sender import send_piano_summary_email
 from pytune_helpers.pdf import upload_pdf_and_get_url
+from app.services.music_enrichment import trigger_music_source_enrichment
 from simple_logger import get_logger, logger, SimpleLogger
 import os
 from fastapi import Body
@@ -263,7 +265,15 @@ async def identify_from_photos(
         message += f"\n\n🧠 {result['age_method']}"
 
     await reporter.done()
-
+        # 🚀 Tâche de fond : enrichir avec sources musicales (IMSLP, Spotify, etc.)
+    asyncio.create_task(
+        trigger_music_source_enrichment(
+            piano_data=fp,
+            sheet_music=result.get("extra", {}).get("sheet_music"),
+            user_id=user.id,
+            session_id=session.id
+        )
+    )
     return AgentResponse(
         message=message,
         context_update={
