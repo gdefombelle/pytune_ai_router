@@ -102,6 +102,19 @@ conversation:
     actions:
       - suggest_action: "📄 Receive full report"
         trigger_event: trigger_pdf_send
+      - suggest_action: "Skip this step"
+        trigger_event: skip_pdf_send
+  
+  - elif: first_piano.skip_pdf_sent is true
+    continue: true
+    say: >
+      Alright, no problem — let’s move on.
+
+  - elif: first_piano.report_sent is true
+    continue: true
+    say: >
+      ✅ The report has been sent! Let’s continue.
+
 
   - elif: is_confirmed and not identified_from_image and not first_piano.skipped_upload
     say: >
