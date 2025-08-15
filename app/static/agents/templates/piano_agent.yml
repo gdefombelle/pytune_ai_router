@@ -21,6 +21,9 @@ start:
 
     - suggest_action: "Where is the serial number?"
       trigger_event: show_serial_help
+    
+    - suggest_action: "How to measure size?"
+      trigger_event: show_size_help
 
 triggers:
   - event: page_visit
@@ -156,6 +159,6 @@ metadata:
   lang: en
   allow_interruptions: true
   llm_backend: openai
-  llm_model: gpt-3.5-turbo
+  llm_model: gpt-4o-mini
   memory: true
   form_context_key: first_piano

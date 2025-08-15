@@ -108,7 +108,7 @@ Example:
         corrected = await call_llm(
             prompt=correction_prompt,
             context={"source": "brand_resolver", "brand": brand},
-            metadata={"llm_backend": "openai", "llm_model": "gpt-3.5-turbo"},
+            metadata={"llm_backend": "openai", "llm_model": "gpt-4o-mini"},
             reporter=reporter
         )
 

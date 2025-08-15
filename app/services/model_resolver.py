@@ -55,7 +55,7 @@ async def resolve_model_name(
         llm_output = await call_llm(
             prompt=prompt,
             context={"source": "model_resolver", "attempted": model_name},
-            metadata={"llm_backend": "openai", "llm_model": "gpt-4o"},
+            metadata={"llm_backend": "openai", "llm_model": "gpt-4o-mini"},
             reporter=reporter
         )
 
