@@ -1,51 +1,69 @@
 [tool.poetry]
-name = "pytune_ai_router"
+name = "pytune-ai-router"
 version = "1.0.1"
-description = "routing Ollama, OpenAI, Gemini, etc .."
+description = "Routing layer for Ollama, OpenAI, Gemini, etc."
 authors = ["Gabriel de Fombelle <gabriel.de.fombelle@gmail.com>"]
 license = "MIT"
 readme = "README.md"
-package-mode = false 
+packages = [{ include = "app" }]   # code dans services/pytune_ai_router/app
 
 [tool.poetry.dependencies]
-python = "^3.12.3"
-asyncpg = "*"  # Pour la gestion des connexions PostgreSQL
-fastapi = "*"  # Framework FastAPI pour l'API admin
-pydantic = "*"  # Validation des données
-tortoise-orm = "*"
-python-dotenv = "*"  # Chargement des variables d'environnement
-redis = "*"  # Intégration Redis pour certaines fonctionnalités
+python = ">=3.12,<3.13"
 
-# --- PROD mode (git) ---
-# simple_logger = { git = "https://github.com/gdefombelle/simple_logger.git" }
-# pytune_helpers = { git = "https://github.com/gdefombelle/pytune_helpers.git" }
-# pytune_data = { git = "https://github.com/gdefombelle/pytune_data.git" }
-# pytune_auth_common = { git = "https://github.com/gdefombelle/pytune_auth_common.git" }
+# API stack
+fastapi = "^0.115.0"
+uvicorn = { extras = ["standard"], version = "^0.34.0" }
+pydantic = "^2.8.0"
 
-# --- DEV mode (local) ---
-pytune_auth_common = { path = "../../packages/pytune_auth_common" }
-simple_logger = { path = "../../packages/simple_logger" }
-pytune_helpers = { path = "../../packages//pytune_helpers" }
-pytune_configuration = {path = "../../packages/pytune_configuration"}
-pytune_data = { path = "../../packages/pytune_data" }
+# Networking / IO
+httpx = "^0.27.2"
+pyyaml = "^6.0.2"
+aiofiles = "^24.1.0"
+python-multipart = "^0.0.12"
 
-openai = "*"               # Pour l’appel à l’API OpenAI
-httpx = "*"                # Pour les appels réseau (ex: Ollama)
-pyyaml = "*"               # Pour parser les fichiers YAML (politique agent)
-aiofiles = "*"             # Pour l'upload temporaire de fichiers
-python-multipart = "*"     # Pour le support de fichiers dans FastAPI
-ollama = "*"               # Client Python officiel si dispo/stable (optionnel)
+# LLM clients (pinned raisonnable)
+openai = "^1.35.0"
+ollama = "^0.3.0"
 
+# Infra (si utilisés dans ce service)
+redis = "^5.0.7"
+asyncpg = "^0.30.0"
+tortoise-orm = "^0.20.0"
+python-dotenv = "^1.0.1"
 
+# Choisis UNE version commune pour TOUT ton monorepo. Je te conseille Pillow 11.x partout.
+# -> Mets Pillow "^11.2.1" ici, ET aligne les autres packages qui utilisent Pillow sur "^11.2.1".
+pillow = "^11.2.1"
 
-uvicorn = {extras = ["standard"], version = "^0.34.0"}
+# Si tu lis des HEIC/HEIF localement, garde pillow-heif, sinon commente-le.
+# Sous Docker (Debian/Ubuntu slim) ça marche sans dépendances OS ; sous Alpine, parfois il manque des codecs.
+pillow-heif = { version = "^1.0.0" }
+sse-starlette = "^2.0.0"
+
+# PDF util
 fpdf = "^1.7.2"
 
+# ---- DEV (monorepo, editable) ----
+simple-logger = { path = "../../packages/simple_logger", develop = true }
+pytune-helpers = { path = "../../packages/pytune_helpers", develop = true }
+pytune-configuration = { path = "../../packages/pytune_configuration", develop = true }
+pytune-data = { path = "../../packages/pytune_data", develop = true }
+pytune-auth-common = { path = "../../packages/pytune_auth_common", develop = true }
+pytune-llm = { path = "../../packages/pytune_llm", develop = true}
+
+# ---- PROD (quand tu publieras) ----
+# simple-logger = "^2.0.1"
+# pytune-helpers = "^1.2.0"
+# pytune-configuration = "^2.0.3"
+# pytune-data = "^x.y.z"
+# pytune-auth-common = "^x.y.z"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^7.0"  # Tests unitaires
-pytest-asyncio = "*"  # Tests asynchrones
+pytest = "^8.2.0"
+pytest-asyncio = "^0.23.8"
+ruff = "^0.6.8"
+mypy = "^1.11.1"
 
 [build-system]
-requires = ["poetry>=1.1.0"]
+requires = ["poetry-core>=1.9.0"]
 build-backend = "poetry.core.masonry.api"

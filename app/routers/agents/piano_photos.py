@@ -108,7 +108,7 @@ async def send_piano_report(
         raise HTTPException(status_code=500, detail=f"Email sending failed: {e}")
 
     await reporter.done("✅ Report sent")
-    return JSONResponse({"success": True})
+    return JSONResponse({"success": True, "pdf_url" :pdf_url})
 
 
 @router.post("/pianos/guess_model")

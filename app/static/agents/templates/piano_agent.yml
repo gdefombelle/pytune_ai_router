@@ -9,19 +9,15 @@ start:
     💬 Or type something like: `Blüthner upright`, `Yamaha C3`, `120cm upright`
     
     🎙️ You can also use the microphone to describe it aloud  
-
   actions:
     - trigger_event: set_placeholder
       suggest_action: ""
       params:
         value: "Brand, type (upright/grand), model or size, serial number…"
-
     - suggest_action: "Guided upload photos"
       trigger_event: open_photo_guide
-
     - suggest_action: "Where is the serial number?"
       trigger_event: show_serial_help
-    
     - suggest_action: "How to measure size?"
       trigger_event: show_size_help
 
@@ -40,13 +36,13 @@ context:
   variables:
     first_piano: first_piano
     no_brand: not first_piano or not first_piano.brand
-    no_category: first_piano.brand and not first_piano.category
-    no_model: first_piano.category and not first_piano.model and not first_piano.model_dont_know
-    no_size: (first_piano.model or first_piano.model_dont_know) and (not first_piano.size_cm or first_piano.size_cm == 0)
-    no_serial: not first_piano.serial_number and not first_piano.serial_dont_know
-    is_confirmed: first_piano.confirmed is True
-    can_save: first_piano.brand and first_piano.category and (first_piano.model or first_piano.size_cm > 0)
-    identified_from_image: metadata.extracted_from_image is True
+    no_category: first_piano and first_piano.brand and not first_piano.category
+    no_model: first_piano and first_piano.category and not first_piano.model and not first_piano.model_dont_know
+    no_size: first_piano and (first_piano.model or first_piano.model_dont_know) and (not first_piano.size_cm or first_piano.size_cm == 0)
+    no_serial: first_piano and not first_piano.serial_number and not first_piano.serial_dont_know
+    is_confirmed: first_piano and first_piano.confirmed is True
+    can_save: first_piano and first_piano.brand and first_piano.category and (first_piano.model or first_piano.size_cm > 0)
+    extracted_from_image: metadata.extracted_from_image is True
     show_serial_help: not first_piano or not first_piano.serial_number
     hide_serial_help: first_piano and first_piano.serial_number
 
@@ -98,7 +94,7 @@ conversation:
       - suggest_action: "Confirm my piano"
         trigger_event: confirm_piano
 
-  - elif: is_confirmed and identified_from_image
+  - elif: is_confirmed and extracted_from_image
     say: >
       ✅ Your piano has been successfully confirmed from photos and saved.
       Would you like to receive your full report by email?
@@ -108,18 +104,17 @@ conversation:
       - suggest_action: "Skip this step"
         trigger_event: skip_pdf_send
   
-  - elif: first_piano.skip_pdf_sent is true
+  - elif: first_piano.skip_pdf_sent is True
     continue: true
     say: >
       Alright, no problem — let’s move on.
 
-  - elif: first_piano.report_sent is true
+  - elif: first_piano.report_sent is True
     continue: true
     say: >
       ✅ The report has been sent! Let’s continue.
 
-
-  - elif: is_confirmed and not identified_from_image and not first_piano.skipped_upload
+  - elif: is_confirmed and not extracted_from_image and not first_piano.skipped_upload
     say: >
       ✅ Your piano has been successfully saved. Would you like to upload photos of it (optional)? Click ➕
     actions:
@@ -128,7 +123,7 @@ conversation:
       - suggest_action: "Skip this step"
         trigger_event: skip_upload
 
-  - elif: is_confirmed and (identified_from_image or first_piano.skipped_upload)
+  - elif: is_confirmed and (extracted_from_image or first_piano.skipped_upload)
     continue: true
     say: ${llm_response}
     actions: []
@@ -144,7 +139,7 @@ conversation:
     actions: []
 
   - else: true
-    continue_if: first_piano.brand and first_piano.category and (first_piano.model or first_piano.size_cm)
+    continue_if: first_piano and first_piano.brand and first_piano.category and (first_piano.model or first_piano.size_cm)
     say: >
       Thank you so much for sharing all this with me, ${firstname}! You can now explore diagnosis, tutorials, or tuning options below.
     actions:
