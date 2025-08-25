@@ -1,6 +1,6 @@
 name: piano_agent
 description: >
-  PyTune Piano Agent — guides the user step-by-step to describe and save their piano. Then opens a musical conversation.
+  PyTune Piano Agent — guides the user step-by-step to describe and save their piano. Then concludes the flow with clear next actions.
 
 start:
   say: >
@@ -8,7 +8,7 @@ start:
 
     💬 Or type something like: `Blüthner upright`, `Yamaha C3`, `120cm upright`
     
-    🎙️ You can also use the microphone to describe it aloud  
+    🎙️ You can also use the microphone to describe it aloud
   actions:
     - trigger_event: set_placeholder
       suggest_action: ""
@@ -23,7 +23,7 @@ start:
 
 triggers:
   - event: page_visit
-    condition: current_page == "/pianos"
+    condition: current_page in ["/pianos", "/piano-identify"]
 
 context:
   fetch:
@@ -34,17 +34,43 @@ context:
     - dont_know_flags
     - metadata
   variables:
+    # Base state
     first_piano: first_piano
     no_brand: not first_piano or not first_piano.brand
     no_category: first_piano and first_piano.brand and not first_piano.category
-    no_model: first_piano and first_piano.category and not first_piano.model and not first_piano.model_dont_know
-    no_size: first_piano and (first_piano.model or first_piano.model_dont_know) and (not first_piano.size_cm or first_piano.size_cm == 0)
+
+    # Model prompt only if really needed (not confirmed, no hypothesis)
+    has_model_hypothesis: metadata.model_hypothesis and metadata.model_hypothesis.name
+    no_model: first_piano and first_piano.category
+              and not first_piano.model
+              and not first_piano.model_dont_know
+              and not has_model_hypothesis
+              and not (first_piano and first_piano.confirmed is True)
+
+    no_size: first_piano and (first_piano.model or first_piano.model_dont_know)
+             and (not first_piano.size_cm or first_piano.size_cm == 0)
     no_serial: first_piano and not first_piano.serial_number and not first_piano.serial_dont_know
+
     is_confirmed: first_piano and first_piano.confirmed is True
     can_save: first_piano and first_piano.brand and first_piano.category and (first_piano.model or first_piano.size_cm > 0)
+
+    # --- Metadata flags (robust) ---
     extracted_from_image: metadata.extracted_from_image is True
-    show_serial_help: not first_piano or not first_piano.serial_number
-    hide_serial_help: first_piano and first_piano.serial_number
+    extracted_from_image_ever: (metadata.extracted_from_image is True)
+                               or (metadata.extracted_from_image_ever is True)
+                               or (metadata.ui_identified_from_photos is True)
+    photos_attached: metadata.photos_attached is True
+    photo_step_confirmed: metadata.photo_step_confirmed is True or first_piano.skipped_upload is True
+
+    # PDF step (only for the initial “identified via photos” flow)
+    pdf_step_done: first_piano and (first_piano.report_sent is True or first_piano.skip_pdf_sent is True)
+
+    # Paths
+    image_identify_path: extracted_from_image_ever and not photos_attached
+    attach_photos_path: (not extracted_from_image_ever) or photos_attached
+
+    # Final condition
+    finish_ready: is_confirmed and ((image_identify_path and pdf_step_done) or (attach_photos_path and photo_step_confirmed))
 
 conversation:
   - if: raw_user_input
@@ -61,6 +87,15 @@ conversation:
       What type of piano is it — upright or grand?
     actions: []
 
+  # ✅ Invite confirmation as soon as we can save
+  - elif: can_save and not is_confirmed
+    say: >
+      You've entered enough information to register your piano. Please confirm if correct.
+    actions:
+      - suggest_action: "Confirm my piano"
+        trigger_event: confirm_piano
+
+  # 🔎 Ask model only when truly needed (not confirmed, no hypothesis)
   - elif: no_model
     say: >
       Do you happen to know the model name or number?
@@ -85,71 +120,50 @@ conversation:
         trigger_event: set_serial_dont_know
       - suggest_action: "Where is the serial number?"
         trigger_event: show_serial_help
-        if: show_serial_help
 
-  - elif: can_save and not is_confirmed
+  # ✅ IDENTIFIED VIA PHOTOS (initial flow): propose PDF then finish
+  - elif: is_confirmed and image_identify_path and not pdf_step_done
     say: >
-      You've entered enough information to register your piano. Please confirm if correct.
-    actions:
-      - suggest_action: "Confirm my piano"
-        trigger_event: confirm_piano
-
-  - elif: is_confirmed and extracted_from_image
-    say: >
-      ✅ Your piano has been successfully confirmed from photos and saved.
+      ✅ Your piano has been confirmed from photos and saved.
       Would you like to receive your full report by email?
     actions:
       - suggest_action: "📄 Receive full report"
         trigger_event: trigger_pdf_send
       - suggest_action: "Skip this step"
         trigger_event: skip_pdf_send
-  
-  - elif: first_piano.skip_pdf_sent is True
-    continue: true
-    say: >
-      Alright, no problem — let’s move on.
 
-  - elif: first_piano.report_sent is True
-    continue: true
+  # 🖼️ ATTACH FLOW ONLY (never after image-identify): propose optional upload/skip
+  - elif: is_confirmed and attach_photos_path and not photo_step_confirmed and not extracted_from_image_ever
     say: >
-      ✅ The report has been sent! Let’s continue.
-
-  - elif: is_confirmed and not extracted_from_image and not first_piano.skipped_upload
-    say: >
-      ✅ Your piano has been successfully saved. Would you like to upload photos of it (optional)? Click ➕
+      ✅ Your piano has been saved. Would you like to upload photos of it (optional)? Click ➕
     actions:
       - suggest_action: "Upload photos"
-        trigger_event: trigger_upload
+        trigger_event: add_photos
       - suggest_action: "Skip this step"
         trigger_event: skip_upload
 
-  - elif: is_confirmed and (extracted_from_image or first_piano.skipped_upload)
+  # 🎯 Finalization
+  - elif: finish_ready
+    continue: true
+    say: >
+      🎉 All set! Your piano has been registered.
+    actions:
+      - trigger_event: open_finish_modal
+      - suggest_action: "Start quick diagnosis"
+        route_to: "/diagnosis"
+      - suggest_action: "See my pianos"
+        route_to: "/pianos"
+      - suggest_action: "Add another piano"
+        route_to: "/pianos"
+
+  # Fallback
+  - else: true
     continue: true
     say: ${llm_response}
     actions: []
 
-  - elif: not user_profile.music_start_age
-    say: >
-      When did you start playing the piano, just out of curiosity?
-    actions: []
-
-  - elif: not user_profile.music_style or not user_profile.skill_level
-    say: >
-      What kind of music do you enjoy playing? And how would you describe your level?
-    actions: []
-
-  - else: true
-    continue_if: first_piano and first_piano.brand and first_piano.category and (first_piano.model or first_piano.size_cm)
-    say: >
-      Thank you so much for sharing all this with me, ${firstname}! You can now explore diagnosis, tutorials, or tuning options below.
-    actions:
-      - suggest_action: "Start diagnosis"
-        route_to: "/diagnosis"
-      - suggest_action: "Explore tuning options"
-        route_to: "/tuner"
-
 metadata:
-  version: "3.0"
+  version: "3.6"
   title: "🎹 Pytune Piano Agent Assistant"
   lang: en
   allow_interruptions: true

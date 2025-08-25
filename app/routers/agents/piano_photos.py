@@ -1,16 +1,19 @@
 # --- pytune_piano/routers/piano_photos.py ---
 import asyncio
-from typing import List
-from fastapi import Depends, UploadFile, File, HTTPException
+import json
+from typing import Annotated, List, Optional
+from fastapi import Depends, Form, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
+from pydantic import ValidationError
 from pytune_auth_common.models.schema import UserOut
 from pytune_auth_common.services.auth_checks import get_current_user
 from app.models.policy_model import AgentResponse
 from app.services.piano_identify_from_images_service import identify_piano_from_images  # à adapter selon ton projet
 from pytune_data.crud import get_user_by_id
 from pytune_data.minio_client import PIANO_SESSION_IMAGES_BUCKET, minio_client, TEMP_BUCKET_NAME
-from pytune_data.models import PianoIdentificationSession, User, UserPianoModel
-from pytune_data.schemas import UserPianoModelCreate
+from pytune_data.models import PianoIdentificationSession, PianoModel, User, UserPianoModel
+from pytune_data.piano_model_data_service import resolve_kind_id, resolve_piano_type_id
+from pytune_data.schemas import SaveUserPianoModelOut, UserPianoModelCreate
 from pytune_helpers.images import compress_image, compress_image_and_extract_metadata, download_images_locally, safe_json
 from io import BytesIO
 from uuid import UUID, uuid4
@@ -109,7 +112,6 @@ async def send_piano_report(
 
     await reporter.done("✅ Report sent")
     return JSONResponse({"success": True, "pdf_url" :pdf_url})
-
 
 @router.post("/pianos/guess_model")
 async def guess_model_from_images(
@@ -279,11 +281,19 @@ async def identify_from_photos(
         context_update={
             "first_piano": fp,
             "extra": {
+                # ---- déjà présent ----
                 "sheet_music": result.get("extra", {}).get("sheet_music"),
                 "scene_description": result.get("extra", {}).get("scene_description"),
                 "estimated_value_eur": result.get("extra", {}).get("estimated_value_eur"),
                 "value_confidence": result.get("extra", {}).get("value_confidence"),
-                "model_hypothesis": model_hypothesis or None
+                "model_hypothesis": model_hypothesis or None,
+
+                # ---- 🔥 NOUVEAU : pour la galerie ----
+                "image_urls": urls,             # liste d’URL (MinIO)
+                "photo_previews": urls,         # alias au cas où
+                "preview_urls": urls,           # alias au cas où
+                "photo_metadata": photo_metadata,  # width/height/format/exif…
+                "photo_labels": cleaned_labels,    # angle / notes / lighting / content / view_type…
             },
             "metadata": {
                 "extracted_from_image": True,
@@ -292,73 +302,212 @@ async def identify_from_photos(
         }
     )
 
-@router.post("/photos/upload/{piano_id}")
-async def upload_piano_photos(
+
+@router.post("/pianos/{piano_id}/photos", response_model=AgentResponse)
+async def upload_photos_for_piano_id(
     piano_id: int,
-    files: list[UploadFile] = File(...),
+    files: List[UploadFile] = File(...),
+    current_user: UserOut = Depends(get_current_user),
 ):
     if not files:
-        raise HTTPException(status_code=400, detail="No files uploaded.")
+        raise HTTPException(status_code=400, detail="No files provided")
 
-    reporter = TaskReporter("piano_agent", total_steps=len(files))
-    uploaded = []
+    # 0) Ownership
+    user_piano = await UserPianoModel.get_or_none(id=piano_id, user_id=current_user.id)
+    if not user_piano:
+        raise HTTPException(status_code=404, detail="Piano not found")
 
-    for i, file in enumerate(files, 1):
+    reporter = TaskReporter("piano_agent", auto_progress=True, delay_after_step=0.5)
+
+    # 1) Upload vers MinIO
+    await reporter.step("📤 Uploading photos to MinIO")
+    uploaded_urls: list[str] = []
+    uploaded_meta_list: list[dict] = []
+
+    for f in files:
         try:
-            await reporter.step(f"📤 Uploading {file.filename} ({i}/{len(files)})")
+            raw = await f.read()
+            compressed, safe_meta = compress_image_and_extract_metadata(raw)
 
-            original_bytes = await file.read()
-            compressed = compress_image(original_bytes)
-            fname = f"piano_{piano_id}_{uuid4().hex}_{file.filename.replace(' ', '_')}"
-
+            fname = f"attach_{uuid4().hex}_{f.filename.replace(' ', '_')}"
             minio_client.client.put_object(
-                TEMP_BUCKET_NAME,
+                PIANO_SESSION_IMAGES_BUCKET,
                 fname,
                 compressed,
                 length=compressed.getbuffer().nbytes,
-                content_type="image/jpeg"
+                content_type="image/jpeg",
             )
 
-            url = f"https://minio.pytune.com/{TEMP_BUCKET_NAME}/{fname}"
-            uploaded.append({
-                "filename": file.filename,
-                "url": url
-            })
+            url = f"https://minio.pytune.com/{PIANO_SESSION_IMAGES_BUCKET}/{fname}"
+            uploaded_urls.append(url)
 
+            safe_meta["filename"] = f.filename
+            safe_meta["minio_url"] = url
+            uploaded_meta_list.append(safe_meta)
         except Exception as e:
-            logger.warning(f"[UPLOAD ERROR] {file.filename}: {e}")
-            uploaded.append({
-                "filename": file.filename,
-                "error": str(e)
-            })
+            logger.warning(f"Upload failed for {f.filename}: {e}")
+            raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
 
-    await reporter.done("✅ Upload complete")
+    # 2) Session : réutiliser si possible, sinon créer
+    await reporter.step("🗂️ Attaching to session")
+    session: Optional[PianoIdentificationSession] = None
+    if user_piano.piano_identification_session_id:
+        session = await PianoIdentificationSession.get_or_none(
+            id=user_piano.piano_identification_session_id
+        )
 
-    return {
-        "status": "ok",
-        "uploaded": uploaded
-    }
+    if not session:
+        ctx = {
+            "first_piano": {
+                "manufacturer_id": user_piano.manufacturer_id,
+                "brand": getattr(user_piano, "brand", None),
+                "category": user_piano.kind,
+                "type": user_piano.type_label,
+                "size_cm": user_piano.size_cm,
+                "serial_number": user_piano.serial_number,
+                "year_estimated": user_piano.manufacture_year,
+                "nb_notes": user_piano.keys,
+            },
+            "manufacturer_id": user_piano.manufacturer_id,
+            "extra": {},
+        }
+        session = await create_identification_session(
+            user_id=current_user.id,
+            image_urls=uploaded_urls,
+            photo_metadata=safe_json(uploaded_meta_list),
+            model_hypothesis=None,
+            photo_labels=None,
+            context_snapshot=ctx,
+        )
+        user_piano.piano_identification_session_id = session.id
+        await user_piano.save()
+    else:
+        # Merge URLs/métadatas avec l’existant de la session
+        try:
+            existing_urls = []
+            if isinstance(session.image_urls, list):
+                existing_urls = session.image_urls
+            elif isinstance(session.image_urls, str) and session.image_urls:
+                existing_urls = json.loads(session.image_urls)
+        except Exception:
+            existing_urls = []
 
-@router.post("/piano/save", summary="Confirm and save user's piano model")
+        try:
+            existing_meta = []
+            if isinstance(session.photo_metadata, list):
+                existing_meta = session.photo_metadata
+            elif isinstance(session.photo_metadata, str) and session.photo_metadata:
+                existing_meta = json.loads(session.photo_metadata)
+        except Exception:
+            existing_meta = []
+
+        merged_urls = list(dict.fromkeys([*existing_urls, *uploaded_urls]))
+        merged_meta = [*existing_meta, *uploaded_meta_list]
+
+        session.image_urls = safe_json(merged_urls)
+        session.photo_metadata = safe_json(merged_meta)
+        await session.save()
+
+    # 3) Labellisation
+    await reporter.step("🏷️ Labelling photos")
+    raw_metadata, cleaned_labels = await label_images_from_session(session.id, reporter=reporter)
+    await update_identification_session(session.id, photo_labels=cleaned_labels, metadata=raw_metadata)
+
+    await reporter.done()
+
+    # 4) Prépare les données pour l’UI (galerie)
+    #    On relit ce qu’on a en base pour être sûr d’envoyer l’état cumulé.
+    try:
+        all_urls = []
+        if isinstance(session.image_urls, list):
+            all_urls = session.image_urls
+        elif isinstance(session.image_urls, str) and session.image_urls:
+            all_urls = json.loads(session.image_urls)
+    except Exception:
+        all_urls = uploaded_urls  # fallback minimal
+
+    try:
+        all_meta = []
+        if isinstance(session.photo_metadata, list):
+            all_meta = session.photo_metadata
+        elif isinstance(session.photo_metadata, str) and session.photo_metadata:
+            all_meta = json.loads(session.photo_metadata)
+    except Exception:
+        all_meta = uploaded_meta_list
+
+    # 5) Réponse agent (on ne modifie pas first_piano ici)
+    return AgentResponse(
+        message="📸 Photos uploaded and linked to your piano.",
+        context_update={
+            "extra": {
+                "image_urls": all_urls,
+                # alias pour compat avec l’UI :
+                "photo_previews": all_urls,
+                "preview_urls": all_urls,
+                "photo_metadata": all_meta,
+                "photo_labels": cleaned_labels or [],
+            },
+            "metadata": {
+                "session_id": str(session.id),
+                "photos_attached": True,
+            },
+        },
+        actions=[],
+    )
+
+
+# routes
+@router.post("/piano/save", summary="Confirm and save user's piano model",
+             response_model=SaveUserPianoModelOut)
 async def save_user_piano_model(
     payload: UserPianoModelCreate,
-    current_user: UserOut = Depends(get_current_user)
+    current_user: UserOut = Depends(get_current_user),
 ):
+    from pytune_data.piano_model_data_service import resolve_model
     reporter = TaskReporter("piano_agent", total_steps=1)
     await reporter.step("💾 Saving your piano...")
 
     try:
         user = await get_user_by_id(current_user.id)
 
+        # (facultatif) réutiliser la session si fournie; ne PAS lever 404 si absente
         session = None
         if payload.piano_identification_session_id:
-            session = await PianoIdentificationSession.get_or_none(id=payload.piano_identification_session_id)
-            if not session:
-                raise HTTPException(status_code=404, detail="Identification session not found")
+            session = await PianoIdentificationSession.get_or_none(
+                id=payload.piano_identification_session_id
+            )
+            # si non trouvée, on laisse session=None et on continue; on peut logger si besoin
 
+        # Résoudre un modèle connu si possible
+        pianomodel_fk: Optional[int] = None
+        if payload.pianomodel_id:
+            pianomodel_fk = payload.pianomodel_id
+        elif payload.manufacturer_id and payload.model_name:
+            pianomodel_fk = await resolve_model(
+                manufacturer_id=payload.manufacturer_id,
+                raw_label=payload.model_name
+            )
+        if pianomodel_fk:
+            logger.info(f"🎹 Model resolved: {pianomodel_fk} for label '{payload.model_name}'")
+        else:
+            logger.warning(f"⚠️ No model match for '{payload.model_name}' (manufacturer_id={payload.manufacturer_id})")
+
+        kind_id: Optional[int] = None
+        if payload.kind:
+            kind_id = resolve_kind_id(payload.kind)
+
+        piano_type_id: Optional[int] = None
+        if kind_id and payload.piano_type:
+            piano_type_id = await resolve_piano_type_id(
+                kind_id=kind_id,
+                piano_type_label=payload.piano_type,
+                size_cm=payload.size_cm
+            )
+
+        # ✅ IMPORTANT : utiliser le bon nom de champ pour la FK modèle
         user_piano = await UserPianoModel.create(
             user=user,
-            pianomodel_id=payload.pianomodel_id,
+            piano_model_id=pianomodel_fk,                         # mapping FK correct
             manufacturer_id=payload.manufacturer_id,
             name=payload.name,
             location=payload.location,
@@ -369,15 +518,25 @@ async def save_user_piano_model(
             model_name=payload.model_name,
             kind=payload.kind,
             type_label=payload.type_label,
-            size_cm=payload.size_cm,
+            size_cm=payload.size_cm,                              # ⚠️ size_cm (pas size)
             keys=payload.keys,
             extra_data=payload.extra_data or {},
-            piano_identification_session_id=payload.piano_identification_session_id
+            piano_identification_session_id=payload.piano_identification_session_id,
+            kind_id= kind_id,
+            piano_type_id=piano_type_id
         )
 
         await reporter.done("✅ Piano saved!")
-        return {"success": True, "piano_id": user_piano.id}
+        return SaveUserPianoModelOut(
+            success=True,
+            user_piano_id=user_piano.id,
+            manufacturer_id=user_piano.manufacturer_id,
+            pianomodel_id=pianomodel_fk,
+            piano_identification_session_id=user_piano.piano_identification_session_id,
+        )
 
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save piano: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to save piano: {e}")
 
