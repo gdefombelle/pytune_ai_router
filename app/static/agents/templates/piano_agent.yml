@@ -154,7 +154,7 @@ conversation:
       - suggest_action: "See my pianos"
         route_to: "/pianos"
       - suggest_action: "Add another piano"
-        route_to: "/pianos"
+        trigger_event: "restart_identification"
 
   # Fallback
   - else: true

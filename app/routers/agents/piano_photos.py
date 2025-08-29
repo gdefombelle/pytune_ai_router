@@ -455,7 +455,6 @@ async def upload_photos_for_piano_id(
         actions=[],
     )
 
-
 # routes
 @router.post("/piano/save", summary="Confirm and save user's piano model",
              response_model=SaveUserPianoModelOut)
@@ -479,14 +478,27 @@ async def save_user_piano_model(
             # si non trouvée, on laisse session=None et on continue; on peut logger si besoin
 
         # Résoudre un modèle connu si possible
+        # Résoudre un modèle connu si possible
         pianomodel_fk: Optional[int] = None
+
         if payload.pianomodel_id:
             pianomodel_fk = payload.pianomodel_id
-        elif payload.manufacturer_id and payload.model_name:
-            pianomodel_fk = await resolve_model(
-                manufacturer_id=payload.manufacturer_id,
-                raw_label=payload.model_name
-            )
+
+        else:
+            model_label: Optional[str] = payload.model_name
+
+            # Fallback sur hypothesized_model si model_name est vide
+            if not model_label and payload.extra_data:
+                hypo = payload.extra_data.get("hypothesized_model")
+                if hypo:
+                    model_label = f"~{hypo}"  # ou juste hypo si tu ne veux pas du ~ dans le resolver
+
+            if payload.manufacturer_id and model_label:
+                pianomodel_fk = await resolve_model(
+                    manufacturer_id=payload.manufacturer_id,
+                    raw_label=model_label
+                )
+
         if pianomodel_fk:
             logger.info(f"🎹 Model resolved: {pianomodel_fk} for label '{payload.model_name}'")
         else:
@@ -497,12 +509,27 @@ async def save_user_piano_model(
             kind_id = resolve_kind_id(payload.kind)
 
         piano_type_id: Optional[int] = None
-        if kind_id and payload.piano_type:
+        if kind_id and payload.type_label:
             piano_type_id = await resolve_piano_type_id(
                 kind_id=kind_id,
-                piano_type_label=payload.piano_type,
+                piano_type_label=payload.type_label,
                 size_cm=payload.size_cm
             )
+
+        if not session:
+            # 🗂️ Session
+            await reporter.step("🗂️ Creating session")
+            session = await create_identification_session(
+                user_id=current_user.id,
+                image_urls=[],  # requis même si vide
+                photo_labels=None,
+                photo_metadata=None,
+                context_snapshot=None,
+                model_hypothesis=None,
+                metadata=None,
+                conversation_id=payload.conversation_id  # <-- nouveau champ à passer
+            )
+
 
         # ✅ IMPORTANT : utiliser le bon nom de champ pour la FK modèle
         user_piano = await UserPianoModel.create(
@@ -515,7 +542,7 @@ async def save_user_piano_model(
             manufacture_year=payload.manufacture_year,
             purchase_year=payload.purchase_year,
             notes=payload.notes,
-            model_name=payload.model_name,
+            model_name=model_label,
             kind=payload.kind,
             type_label=payload.type_label,
             size_cm=payload.size_cm,                              # ⚠️ size_cm (pas size)
