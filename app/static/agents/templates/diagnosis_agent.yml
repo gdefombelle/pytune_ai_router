@@ -1,35 +1,35 @@
 name: diagnosis_agent
 description: >
-  Agent to guide users through their first diagnosis.
+  PyTune Diagnosis Agent — prepares the user to start the piano acoustic diagnosis using the microphone.
 
-triggers:
-  - event: user_login
-    condition: not last_diagnosis.exists
+start:
+  say: |
+    🎙️ To start the PyTune Diagnosis you will need a MICROPHONE and to sit in front of your piano
+    (lid open if possible, in a quiet environment).
 
-context:
-  fetch:
-    - user_profile
-    - last_diagnosis
-    - user_language
-  variables: {}
+    ⏱️ The full process takes about 2 minutes:
+    - microphone calibration and A4 reference note
+    - guided chromatic scale (each note ~2 seconds)
+    - a few long notes at the low and high ends
+  actions:
+    - suggest_action: "Connect microphone"
+      trigger_event: connect_micro
+    - suggest_action: "Start diagnosis (micro)"
+      trigger_event: start_micro_diagnosis
+    - suggest_action: "ℹ️ What is PyTune Diagnosis?"
+      route_to: "/diagnosis/about"
 
 conversation:
-  - if: "not last_diagnosis.exists"
-    say: >
-      Ready to understand your piano's state?  
-      PyTune can analyze your piano instantly. Would you like to try the diagnostic now?
-    actions:
-      - suggest_action: "Start diagnosis"
-        route_to: "/diagnosis"
-
   - else: true
-    say: >
-      You’ve already performed a diagnosis. You can consult your tuning reports or run another analysis.
-    actions:
-      - suggest_action: "View my reports"
-        route_to: "/tuning-history"
+    continue: true
+    say: ${llm_response}
+    actions: []
 
 metadata:
   version: "1.0"
+  title: "🎹 PyTune Diagnosis Agent"
   lang: en
-  allow_interruptions: true
+  llm_backend: openai
+  llm_model: gpt-4o-mini
+  allow_interruptions: false
+  memory: false

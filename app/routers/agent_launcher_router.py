@@ -80,7 +80,7 @@ async def start_agent(
         }
 
     # ✅ Mark task as done
-    await reporter.done(delay_after=2)
+    await reporter.done(delay_after=1)
 
     return response
 
