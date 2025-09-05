@@ -2,6 +2,10 @@ name: diagnosis_agent
 description: >
   PyTune Diagnosis Agent — prepares the user to start the piano acoustic diagnosis using the microphone.
 
+triggers:
+  - event: page_visit
+    condition: current_page in ["/diagnosis"]
+
 start:
   say: |
     🎙️ To start the PyTune Diagnosis you will need a MICROPHONE and to sit in front of your piano
@@ -12,24 +16,52 @@ start:
     - guided chromatic scale (each note ~2 seconds)
     - a few long notes at the low and high ends
   actions:
-    - suggest_action: "Connect microphone"
-      trigger_event: connect_micro
-    - suggest_action: "Start diagnosis (micro)"
-      trigger_event: start_micro_diagnosis
+    - suggest_action: "Continue"
+      trigger_event: continue_intro
     - suggest_action: "ℹ️ What is PyTune Diagnosis?"
       route_to: "/diagnosis/about"
 
 conversation:
+  - if: event == "continue_intro"
+    say: "🎤 Please connect your microphone to continue."
+    actions:
+      - suggest_action: "Connect microphone"
+        trigger_event: connect_micro
+
+  - elif: event == "connect_micro"
+    say: "🔍 Checking WebSocket connection and latency..."
+    actions:
+      - suggest_action: "Test WebSocket"
+        trigger_event: test_ws
+
+  - elif: event == "latency_ok" and diagnosis.ws_connected == True and diagnosis.mic_ready == True and diagnosis.latency_ms < 100
+    say: "📶 Latency acceptable ({{ diagnosis.latency_ms }} ms). Ready to start diagnosis."
+    actions:
+      - suggest_action: "Start diagnosis"
+        trigger_event: start_micro_diagnosis
+
+  - elif: event == "latency_ok" and (diagnosis.ws_connected != True or diagnosis.mic_ready != True)
+    say: "⚠️ Microphone or WebSocket not ready. Please retry."
+
+  - elif: event == "latency_ok" and diagnosis.latency_ms >= 100
+    say: "⚠️ Latency too high ({{ diagnosis.latency_ms }} ms). Please check your connection and retry."
+
+  - elif: event == "start_micro_diagnosis"
+    say: "🚀 Diagnosis is starting now. Please follow the instructions on the screen."
+
   - else: true
     continue: true
-    say: ${llm_response}
+    say: "🤔 I'm not sure what to do. Please try again."
     actions: []
 
 metadata:
-  version: "1.0"
+  version: "1.2"
   title: "🎹 PyTune Diagnosis Agent"
   lang: en
-  llm_backend: openai
-  llm_model: gpt-4o-mini
   allow_interruptions: false
   memory: false
+  context_key: diagnosis_session
+
+# ✅ plus de variables forcées ici
+context:
+  variables: {}

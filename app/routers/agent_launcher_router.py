@@ -80,7 +80,7 @@ async def start_agent(
         }
 
     # ✅ Mark task as done
-    await reporter.done(delay_after=1)
+    await reporter.done()
 
     return response
 
@@ -141,7 +141,7 @@ async def evaluate_agent(
             await append_message(uuid_, "assistant", response.message)
         except Exception as e:
             print(f"⚠️ Failed to append assistant message from /evaluate: {e}")
-    await reporter.done(delay_after=0.1)
+    await reporter.done()
     return response
 
 

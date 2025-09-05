@@ -63,6 +63,8 @@ async def start_policy(
     return await load_policy_and_resolve(agent_name, context, reporter=reporter)
 
 
+from jinja2 import Template
+
 async def load_policy_and_resolve(
     agent_name: str,
     user_context: dict,
@@ -89,8 +91,15 @@ async def load_policy_and_resolve(
     await step("🧠 Evaluating rules")
     evaluated_response = await evaluate_policy(policy_data, user_context)
 
-    # 🔁 LLM if needed
+    # === 🔥 Jinja2 rendering pour interpoler le message ===
     message = evaluated_response.get("message", "")
+    try:
+        if message and ("{{" in message or "{%" in message):
+            message = Template(message).render(**user_context)
+    except Exception as e:
+        print("⚠️ Jinja2 rendering failed:", e)
+
+    # 🔁 LLM if needed
     if "${llm_response}" in message:
         await step("🤖 Calling LLM for partial response")
         prompt = render_prompt_template(agent_name, user_context)

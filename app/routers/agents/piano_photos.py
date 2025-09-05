@@ -49,7 +49,7 @@ async def send_piano_report(
     data: dict = Body(...),
     user: UserOut = Depends(get_current_user)
 ):
-    reporter = TaskReporter(agent="piano_agent", total_steps=5, delay_after_step=0.05)
+    reporter = TaskReporter(agent="piano_agent", total_steps=5)
 
     await reporter.step("📦 Fetching session")
     session = await get_identification_session(session_id)
@@ -164,7 +164,7 @@ async def identify_from_photos(
     if not files:
         raise HTTPException(status_code=400, detail="No files provided")
 
-    reporter = TaskReporter("piano_agent", auto_progress=True, delay_after_step=0.5)
+    reporter = TaskReporter("piano_agent", auto_progress=True)
 
     # 🖼️ Upload
     await reporter.step("📤 Uploading photos to MinIO")
@@ -317,7 +317,7 @@ async def upload_photos_for_piano_id(
     if not user_piano:
         raise HTTPException(status_code=404, detail="Piano not found")
 
-    reporter = TaskReporter("piano_agent", auto_progress=True, delay_after_step=0.5)
+    reporter = TaskReporter("piano_agent", auto_progress=True)
 
     # 1) Upload vers MinIO
     await reporter.step("📤 Uploading photos to MinIO")
