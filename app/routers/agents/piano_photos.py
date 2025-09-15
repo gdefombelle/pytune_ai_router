@@ -14,13 +14,12 @@ from pytune_data.minio_client import PIANO_SESSION_IMAGES_BUCKET, minio_client, 
 from pytune_data.models import PianoIdentificationSession, PianoModel, User, UserPianoModel
 from pytune_data.piano_model_data_service import resolve_kind_id, resolve_piano_type_id
 from pytune_data.schemas import SaveUserPianoModelOut, UserPianoModelCreate
-from pytune_helpers.images import compress_image, compress_image_and_extract_metadata, download_images_locally, safe_json
+from pytune_helpers_images.images import compress_image, compress_image_and_extract_metadata, download_images_locally, safe_json
 from io import BytesIO
 from uuid import UUID, uuid4
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from pytune_data.minio_client import minio_client, TEMP_BUCKET_NAME
 from io import BytesIO
-from pytune_helpers.images import compress_image
 from app.core.prompt_builder import render_prompt_template
 from app.models.piano_guess_model import PianoGuessInput
 from fastapi import UploadFile, File, HTTPException
@@ -31,7 +30,7 @@ from pytune_data.piano_identification_session import create_identification_sessi
 from app.services.image_labelling import label_images_from_session
 from app.utils.context_helpers import build_context_snapshot, build_model_data
 from app.services.email_sender import send_piano_summary_email
-from pytune_helpers.pdf import upload_pdf_and_get_url
+from pytune_helpers_core.pdf import upload_pdf_and_get_url
 from app.services.music_enrichment import trigger_music_source_enrichment
 from simple_logger import get_logger, logger, SimpleLogger
 import os

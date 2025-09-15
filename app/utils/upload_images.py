@@ -6,7 +6,7 @@ from PIL import Image
 import mimetypes
 
 from pytune_data import minio_client, TEMP_BUCKET_NAME, COLLECTION_NAME
-from pytune_helpers.images import compress_image
+from pytune_helpers_images import compress_image
 
 
 async def upload_images_to_miniofiles(

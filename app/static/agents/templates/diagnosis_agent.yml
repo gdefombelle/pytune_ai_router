@@ -38,7 +38,8 @@ conversation:
     say: "📶 Latency acceptable ({{ diagnosis.latency_ms }} ms). Ready to start diagnosis."
     actions:
       - suggest_action: "Start diagnosis"
-        trigger_event: start_micro_diagnosis
+        trigger_event: start_diagnosis
+      
 
   - elif: event == "latency_ok" and (diagnosis.ws_connected != True or diagnosis.mic_ready != True)
     say: "⚠️ Microphone or WebSocket not ready. Please retry."
@@ -46,9 +47,9 @@ conversation:
   - elif: event == "latency_ok" and diagnosis.latency_ms >= 100
     say: "⚠️ Latency too high ({{ diagnosis.latency_ms }} ms). Please check your connection and retry."
 
-  - elif: event == "start_micro_diagnosis"
+  - elif: event == "start_diagnosis"
     say: "🚀 Diagnosis is starting now. Please follow the instructions on the screen."
-
+    
   - else: true
     continue: true
     say: "🤔 I'm not sure what to do. Please try again."

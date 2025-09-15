@@ -3,7 +3,7 @@ from io import BytesIO
 import traceback
 from typing import Dict
 from pytune_data.models import User
-from pytune_helpers.email_helper import EmailService
+from pytune_helpers_messaging import EmailService
 from simple_logger import SimpleLogger, get_logger, logger
 from app.core.templates import email_templates
 import traceback
