@@ -8,7 +8,7 @@ triggers:
 
 start:
   say: |
-    🎙️ To start the PyTune Diagnosis you will need a MICROPHONE and to sit in front of your piano
+    🎙️ To start the PyTune Diagnosis you will need one or more MICROPHONES and to sit in front of your piano
     (lid open if possible, in a quiet environment).
 
     ⏱️ The full process takes about 2 minutes:
@@ -23,15 +23,15 @@ start:
 
 conversation:
   - if: event == "continue_intro"
-    say: "🎤 Please connect your microphone to continue."
+    say: "🎤 Please connect one or more microphones to continue."
     actions:
-      - suggest_action: "Connect microphone"
+      - suggest_action: "Connect microphones"
         trigger_event: connect_micro
 
   - elif: event == "connect_micro"
     say: "🔍 Checking WebSocket connection and latency..."
     actions:
-      - suggest_action: "Test WebSocket"
+      - suggest_action: "Test connection"
         trigger_event: test_ws
 
   - elif: event == "latency_ok" and diagnosis.ws_connected == True and diagnosis.mic_ready == True and diagnosis.latency_ms < 100
