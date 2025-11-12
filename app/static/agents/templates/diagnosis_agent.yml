@@ -1,6 +1,6 @@
 name: diagnosis_agent
 description: >
-  PyTune Diagnosis Agent — prepares the user to start the piano acoustic diagnosis using the microphone.
+  PyTune Diagnosis Agent — prepares the user to start the piano acoustic diagnosis using the microphone and optionally AirPods.
 
 triggers:
   - event: page_visit
@@ -8,12 +8,13 @@ triggers:
 
 start:
   say: |
-    🎙️ To start the PyTune Diagnosis you will need one or more MICROPHONES and to sit in front of your piano
-    (lid open if possible, in a quiet environment).
+    🎙️ To start the PyTune Diagnosis you will need:
+    - one or more MICROPHONES
+    - (optional) a connected headset or AirPods to receive audio cues.
 
     ⏱️ The full process takes about 2 minutes:
     - microphone calibration and A4 reference note
-    - guided chromatic scale (each note ~2 seconds)
+    - guided chromatic scale
     - a few long notes at the low and high ends
   actions:
     - suggest_action: "Continue"
@@ -35,11 +36,48 @@ conversation:
         trigger_event: test_ws
 
   - elif: event == "latency_ok" and diagnosis.ws_connected == True and diagnosis.mic_ready == True and diagnosis.latency_ms < 100
-    say: "📶 Latency acceptable ({{ diagnosis.latency_ms }} ms). Ready to start diagnosis."
+    say: "📶 Latency acceptable ({{ diagnosis.latency_ms }} ms). Would you like to use AirPods or a headset for audio instructions?"
     actions:
-      - suggest_action: "Start diagnosis"
+      - suggest_action: "🎧 Connect AirPods"
+        trigger_event: connect_airpods
+      - suggest_action: "🚀 Continue without headset"
+        trigger_event: continue_without_headset
+
+  - elif: event == "connect_airpods"
+    say: |
+      🎧 Searching for available Bluetooth audio output devices...
+      Once connected, PyTune will speak each instruction directly into your headset.
+    actions:
+      - suggest_action: "Scan and connect"
+        trigger_event: scan_airpods
+      - suggest_action: "Skip headset"
+        trigger_event: continue_without_headset
+
+  - elif: event == "scan_airpods"
+    say: "🔊 Scanning for AirPods..."
+    actions:
+      - suggest_action: "Confirm AirPods setup"
+        trigger_event: airpods_confirmed
+      - suggest_action: "Cancel"
+        trigger_event: airpods_cancelled
+
+  - elif: event == "airpods_confirmed"
+    say: "✅ AirPods connected successfully! You’ll now hear voice instructions through your headset."
+    actions:
+      - suggest_action: "▶️ Start Diagnosis"
         trigger_event: start_diagnosis
-      
+
+  - elif: event == "airpods_cancelled"
+    say: "❎ AirPods setup cancelled. You can still continue without them."
+    actions:
+      - suggest_action: "Continue without headset"
+        trigger_event: continue_without_headset
+
+  - elif: event == "continue_without_headset"
+    say: "🎧 You chose to continue without AirPods. You can still hear voice prompts through your computer speakers."
+    actions:
+      - suggest_action: "▶️ Start Diagnosis"
+        trigger_event: start_diagnosis
 
   - elif: event == "latency_ok" and (diagnosis.ws_connected != True or diagnosis.mic_ready != True)
     say: "⚠️ Microphone or WebSocket not ready. Please retry."
@@ -48,21 +86,23 @@ conversation:
     say: "⚠️ Latency too high ({{ diagnosis.latency_ms }} ms). Please check your connection and retry."
 
   - elif: event == "start_diagnosis"
-    say: "🚀 Diagnosis is starting now. Please follow the instructions on the screen."
-    
+    say: |
+      🚀 Diagnosis is starting now.
+      Please follow on-screen or spoken instructions.
+      (e.g., “Play note B1”, “Hold note C2”, or tune higher/lower as indicated.)
+
   - else: true
     continue: true
     say: "🤔 I'm not sure what to do. Please try again."
     actions: []
 
 metadata:
-  version: "1.2"
+  version: "1.3"
   title: "🎹 PyTune Diagnosis Agent"
   lang: en
   allow_interruptions: false
   memory: false
   context_key: diagnosis_session
 
-# ✅ plus de variables forcées ici
 context:
   variables: {}
