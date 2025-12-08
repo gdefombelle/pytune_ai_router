@@ -1,26 +1,47 @@
-# Étape 1 : Image de base
-FROM python:3.12.3-slim
+# ===============================
+# Étape 1 : Build avec UV
+# ===============================
+FROM --platform=linux/amd64 python:3.12-slim AS builder
 
-# Étape 2 : Dossier de travail
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN pip install uv
+
 WORKDIR /app
 
-# Étape 3 : Dépendances système nécessaires (PostgreSQL client, etc.)
-RUN apt-get update && apt-get install -y libpq-dev gcc && apt-get clean
+# Copie du workspace root (pyproject + lock)
+COPY pyproject.toml uv.lock ./
 
-# Étape 4 : Installer Poetry
-RUN pip install --no-cache-dir poetry
+# Copie du repo complet (packages + services)
+COPY src ./src
 
-# Étape 5 : Copier fichiers de dépendances
-COPY pyproject.toml poetry.lock README.md ./
+# Aller dans CE service
+WORKDIR /app/src/services/pytune_ai_router
 
-# Étape 6 : Installer les dépendances sans dev
-RUN poetry install --without dev --no-root
+# Installation des deps du workspace + service
+RUN uv sync --no-dev
 
-# Étape 7 : Copier le code source
-COPY . .
 
-# Étape 8 : Exposer le port (FastAPI Uvicorn port)
+# ===============================
+# Étape 2 : Image finale
+# ===============================
+FROM python:3.12-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# ❗️IMPORTANT : on se place dans le dossier du service
+# pour que "app.main" soit résolu correctement
+WORKDIR /app/src/services/pytune_ai_router
+
+# Copier tout le workspace + la venv
+COPY --from=builder /app /app
+
 EXPOSE 8006
 
-# Étape 9 : Lancer l'application
-CMD ["poetry", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8006"]
+# Lancement via la venv globale du workspace
+CMD ["/app/.venv/bin/uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8006"]
