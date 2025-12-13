@@ -77,6 +77,7 @@ async def load_policy_and_resolve(
     done = reporter.done if reporter else (lambda **kwargs: None)
 
     await step("📜 Loading policy")
+
     policy_data = load_yaml(agent_name)
 
     # 🔁 Inject chat history if available

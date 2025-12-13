@@ -21,7 +21,7 @@ conversation:
     actions: []
   - if: "not user_profile.form_completed"
     say: >
-      Hi ${firstname}, welcome to PyTune!
+      Hi {{firstname}}, welcome to PyTune!
       Let's start with a few details about you to personalize your experience.
     actions:
       - suggest_action: "Complete my profile"
@@ -41,7 +41,7 @@ conversation:
         route_to: "/diagnosis"
   - else: true
     say: >
-      Everything looks ready, ${firstname}! You can:
+      Everything looks ready, {{firstname}}! You can:
       - fine-tune your piano,
       - revisit your diagnosis,
       - or explore more info about your instrument.
