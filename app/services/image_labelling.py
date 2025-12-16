@@ -53,7 +53,6 @@ async def label_images_from_session(
     cleaned_labels = [sanitize_labels(label) for label in raw_labels]
 
     metadata = {
-        "llm_model": "gpt-4o",
         "prompt_version": "labeling-v1",
         "pipeline_version": "2025-07",
         "labeling_completed": True,

@@ -32,7 +32,7 @@ from app.utils.context_helpers import build_context_snapshot, build_model_data
 from app.services.email_sender import send_piano_summary_email
 from pytune_helpers_core.pdf import upload_pdf_and_get_url
 from app.services.music_enrichment import trigger_music_source_enrichment
-from simple_logger import get_logger, logger, SimpleLogger
+from simple_logger.logger import get_logger, SimpleLogger
 import os
 from fastapi import Body
 from pytune_llm.task_reporting.reporter import TaskReporter

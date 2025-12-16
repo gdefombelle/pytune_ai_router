@@ -16,7 +16,7 @@ async def resolve_model_name(
     """
     Résolution du nom de modèle de piano :
     1. Recherche dans la base PyTune
-    2. Sinon, enrichissement structuré via GPT-4o avec prompt Jinja centralisé
+    2. Sinon, enrichissement structuré via GPT-5xx avec prompt Jinja centralisé
     """
 
     # 🔍 Étape 1 — recherche dans la base
@@ -55,7 +55,7 @@ async def resolve_model_name(
         llm_output = await call_llm(
             prompt=prompt,
             context={"source": "model_resolver", "attempted": model_name},
-            metadata={"llm_backend": "openai", "llm_model": "gpt-4o-mini"},
+            metadata={"llm_backend": "openai"},
             reporter=reporter
         )
 

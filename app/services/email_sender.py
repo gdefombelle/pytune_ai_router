@@ -4,11 +4,11 @@ import traceback
 from typing import Dict
 from pytune_data.models import User
 from pytune_helpers_messaging import EmailService
-from simple_logger import SimpleLogger, get_logger, logger
+from simple_logger.logger import SimpleLogger, get_logger
 from app.core.templates import email_templates
 import traceback
 
-logger: SimpleLogger = logger or get_logger()
+logger: SimpleLogger =get_logger()
 
 async def send_piano_summary_email(user: User, pdf_url:str, piano_info: Dict):
     email_service = EmailService()

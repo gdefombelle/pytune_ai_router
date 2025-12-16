@@ -57,7 +57,6 @@ async def trigger_music_source_enrichment(
     llm_response = await call_llm(
         prompt=prompt,
         context={},
-        metadata={"llm_model": "gpt-4o"},
         reporter=reporter,
     )
 

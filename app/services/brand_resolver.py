@@ -66,7 +66,7 @@ Example:
         response = await call_llm(
             prompt=enrichment_prompt,
             context={"source": "brand_resolver", "attempted": brand},
-            metadata={"llm_backend": "openai", "llm_model": "gpt-4o"},
+            metadata={"llm_backend": "openai"},
             reporter=reporter
         )
 
@@ -108,7 +108,7 @@ Example:
         corrected = await call_llm(
             prompt=correction_prompt,
             context={"source": "brand_resolver", "brand": brand},
-            metadata={"llm_backend": "openai", "llm_model": "gpt-4o-mini"},
+            metadata={"llm_backend": "openai"},
             reporter=reporter
         )
 

@@ -49,7 +49,6 @@ async def identify_piano_from_images(
         llm_response = await call_llm_vision(
             prompt=prompt,
             image_urls=image_urls,
-            metadata={"llm_model": "gpt-4o"},
             reporter=reporter
         )
 

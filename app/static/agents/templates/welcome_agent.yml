@@ -57,4 +57,4 @@ metadata:
   lang: en
   allow_interruptions: true
   llm_backend: openai
-  llm_model: gpt-4o-mini
+  llm_model: gpt-5-mini
