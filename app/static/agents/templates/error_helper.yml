@@ -29,7 +29,7 @@ actions:
   - label: Start Diagnosis
     action: go_to
     params:
-      url: "/diagnosis"
+      url: "/diag"
   - label: Describe My Piano
     action: go_to
     params:

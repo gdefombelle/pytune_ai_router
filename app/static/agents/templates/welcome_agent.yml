@@ -38,7 +38,7 @@ conversation:
       Great! Now let’s check your piano’s acoustic condition with a short recording.
     actions:
       - suggest_action: "Run my first diagnosis"
-        route_to: "/diagnosis"
+        route_to: "/diag"
   - else: true
     say: >
       Everything looks ready, {{firstname}}! You can:
@@ -49,7 +49,7 @@ conversation:
       - suggest_action: "Update my piano details"
         route_to: "/piano-identify"
       - suggest_action: "Check my last diagnosis"
-        route_to: "/diagnosis/history"
+        route_to: "/diag/history"
       - suggest_action: "Start tuning"
         route_to: "/tuner"
 metadata:

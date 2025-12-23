@@ -4,7 +4,7 @@ description: >
 
 triggers:
   - event: page_visit
-    condition: current_page in ["/diagnosis"]
+    condition: current_page in ["/diag"]
 
 start:
   say: |
@@ -20,7 +20,7 @@ start:
     - suggest_action: "Continue"
       trigger_event: continue_intro
     - suggest_action: "ℹ️ What is PyTune Diagnosis?"
-      route_to: "/diagnosis/about"
+      route_to: "/diag/about"
 
 conversation:
   - if: event == "continue_intro"

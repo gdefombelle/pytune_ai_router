@@ -22,21 +22,38 @@ from app.utils.dontknow_utils import humanize_dont_know_list, inject_dont_know_m
 
 router = APIRouter(prefix="/ai/agents", tags=["AI Agents"])
 
+@router.get("/{agent_name}/public-metadata")
+async def get_agent_public_metadata(agent_name: str):
+    policy = load_yaml(agent_name)
+    metadata = policy.get("metadata", {}) or {}
+
+    # ⚠️ filtrer explicitement
+    return {
+        "phase_index": metadata.get("phase_index", 0),
+        "total_phases": metadata.get("total_phases", 1),
+        "phase_label": metadata.get("phase_label"),
+        "phase_hint": metadata.get("phase_hint"),
+        "reward_strip": metadata.get("reward_strip", []),
+        "free_badge": metadata.get("free_badge"),
+        "empty_state": metadata.get("empty_state"),
+        "input": metadata.get("input"),
+    }
+
 @router.post("/{agent_name}/start", response_model=AgentResponse)
 async def start_agent(
     agent_name: str,
     extra_context: dict = Body(..., embed=True),
     user: UserOut = Depends(get_current_user),
 ):
-    # 🧠 Initialize the task reporter (4 steps total here, adjust if needed)
     reporter = TaskReporter(agent_name, auto_progress=True)
 
-    # Step 1: Load agent policy
+    # Step 1: Load policy
     await reporter.step("📥 Loading policy")
     policy = load_yaml(agent_name)
-    use_memory = policy.get("metadata", {}).get("memory") is True
+    metadata = policy.get("metadata", {}) or {}
+    use_memory = metadata.get("memory") is True
 
-    # Step 2: Create memory-based conversation if required
+    # Step 2: Create memory if needed
     conversation_id = None
     await reporter.step("🧠 Creating memory" if use_memory else "🧠 Skipping memory")
     if use_memory:
@@ -44,27 +61,32 @@ async def start_agent(
         conv = await create_conversation(user.id, topic=agent_name)
         conversation_id = str(conv.id)
 
-    # Step 3: Resolve full context (user + environment + extra)
+    # Step 3: Resolve context
     await reporter.step("📥 Resolving context")
     full_context = await resolve_user_context(user, extra=extra_context)
     enriched_context = enrich_context(full_context)
-
     if conversation_id:
         enriched_context["conversation_id"] = conversation_id
 
-    # Step 4: Run the `start` block from policy
+    # Step 4: Start policy
     await reporter.step("🚀 Launching agent")
     response = await start_policy(agent_name, enriched_context, reporter=reporter)
 
-    # Optionally inject agent title (if defined in YAML)
-    title = policy.get("metadata", {}).get("title")
-    if title:
-        response.meta = {
-            **response.meta,
-            "title": title
-        }
+    # 🔑 ALWAYS initialize meta
+    response.meta = response.meta or {}
 
-    # Store the assistant’s first message in memory if available
+    # 🔑 ALWAYS expose agent metadata
+    response.meta["metadata"] = metadata
+
+    # Backward compat (optional)
+    if "title" in metadata:
+        response.meta["title"] = metadata["title"]
+
+    # Always expose conversation_id if created
+    if conversation_id:
+        response.meta["conversation_id"] = conversation_id
+
+    # Store first message if needed
     if conversation_id and response.message:
         from pytune_chat.store import append_message
         try:
@@ -72,19 +94,8 @@ async def start_agent(
         except Exception as e:
             print(f"⚠️ Failed to log assistant message: {e}")
 
-    # Always return conversation ID if created
-    if conversation_id:
-        response.meta = {
-            **response.meta,
-            "conversation_id": conversation_id
-        }
-
-    # ✅ Mark task as done
     await reporter.done()
-
     return response
-
-
 @router.post("/{agent_name}/evaluate", response_model=AgentResponse)
 async def evaluate_agent(
     agent_name: str,

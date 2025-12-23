@@ -4,7 +4,8 @@ description: >
 
 start:
   say: >
-    📸 **Upload photos** to identify your piano automatically
+    [[hint]]
+    📸 Upload photos to identify your piano automatically
 
     💬 Or type something like: `Blüthner upright`, `Yamaha C3`, `120cm upright`
     
@@ -150,7 +151,7 @@ conversation:
     actions:
       - trigger_event: open_finish_modal
       - suggest_action: "Start quick diagnosis"
-        route_to: "/diagnosis"
+        route_to: "/diag"
       - suggest_action: "See my pianos"
         route_to: "/pianos"
       - suggest_action: "Add another piano"
@@ -164,10 +165,46 @@ conversation:
 
 metadata:
   version: "3.6"
-  title: "🎹 Pytune Piano Agent Assistant"
+
+  # --- Header ---
+  title: "👋 Let’s start with your piano."
+  subtitle: "I’ll help you identify it — quickly and effortlessly."
+
   lang: en
   allow_interruptions: true
   llm_backend: openai
-  llm_model: gpt-4o-mini
+  llm_model: gpt-5-mini
   memory: true
   form_context_key: first_piano
+
+  # --- UX / Onboarding ---
+  phase: identify
+  phase_index: 1
+  total_phases: 3
+
+  phase_label: "Identify your piano"
+  phase_hint: "Step 1 of 3"
+
+  # --- What the user gets (shown subtly) ---
+  reward_strip:
+    - "Estimated age"
+    - "Piano type & size"
+    - "Estimated value"
+
+  # --- Reassurance ---
+  free_badge:
+    primary: "Free — identify one piano, forever."
+    secondary: "No credit card · Takes about a minute"
+
+  # --- Empty / first-time states ---
+  empty_state:
+    chat_hint: "Tell me what you know — or upload a few photos to get started."
+    result_title: "Your piano will appear here"
+    result_subtitle: "As soon as I recognize it."
+
+  # --- Input ---
+  input:
+    placeholder: "Describe your piano (brand, size, upright or grand…)"
+
+  # --- Voice ---
+  voice_hint: "I’ll take care of the boring parts 🐾"
