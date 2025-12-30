@@ -13,6 +13,7 @@ from .routers.chat_router import router as chat_router
 from .routers.agent_launcher_router import router as agent_launcher_router
 from .routers.agents.piano_photos import router as photos_upload_router
 from .routers.task_stream_router import router as task_stream_router
+from .routers.tts_router import router as tts_router
 from simple_logger.logger import get_logger, SimpleLogger
 from pytune_configuration.sync_config_singleton import config, SimpleConfig
 
@@ -115,6 +116,7 @@ app.include_router(chat_router.router)
 app.include_router(agent_launcher_router)
 app.include_router(photos_upload_router)
 app.include_router(task_stream_router)
+app.include_router(tts_router)
 
 
 # 📄 Gestion des erreurs FastAPI
@@ -154,6 +156,19 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 STATIC_DIR = Path(__file__).parent / "static"
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# 🎧 TTS audio files (OpenAI speech synthesis)
+TTS_AUDIO_DIR = Path(config.TTS_AUDIO_DIR or "/var/pytune/tts")
+
+if TTS_AUDIO_DIR.exists():
+    app.mount(
+        "/tts/audio",
+        StaticFiles(directory=TTS_AUDIO_DIR),
+        name="tts_audio",
+    )
+    logger.info(f"🔊 TTS audio mounted at /tts/audio → {TTS_AUDIO_DIR}")
+else:
+    logger.warning(f"⚠️ TTS audio dir not found: {TTS_AUDIO_DIR}")
 
 # ❤️ Healthcheck route
 @app.get("/")

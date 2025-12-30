@@ -5,22 +5,35 @@ description: >
 start:
   say: >
     [[hint]]
-    📸 Upload photos to identify your piano automatically
+    📸 Identify from photos 
 
-    💬 Or type something like: `Blüthner upright`, `Yamaha C3`, `120cm upright`
-    
-    🎙️ You can also use the microphone to describe it aloud
+    -> Upload a few photos — I’ll do the rest.
+
+    🎙️ Speak  
+
+    -> Describe your piano out loud using the microphone.
+
+    ⌨️ Type  
+
+    -> Or just type something like:  
+    “Blüthner upright”, “Yamaha C3”, “120 cm upright”
+   
   actions:
     - trigger_event: set_placeholder
       suggest_action: ""
       params:
-        value: "Brand, type (upright/grand), model or size, serial number…"
-    - suggest_action: "Guided upload photos"
+        value: "Brand, type (upright or grand), model or size, serial number…"
+
+    - suggest_action: "📸 Identify from photos"
       trigger_event: open_photo_guide
-    - suggest_action: "Where is the serial number?"
-      trigger_event: show_serial_help
-    - suggest_action: "How to measure size?"
-      trigger_event: show_size_help
+
+    - suggest_action: "🎙️ Speak"
+      trigger_event: start_voice_input
+
+    - suggest_action: "⌨️ Type"
+      trigger_event: start_typing
+      params:
+        flash_placeholder: true
 
 triggers:
   - event: page_visit
