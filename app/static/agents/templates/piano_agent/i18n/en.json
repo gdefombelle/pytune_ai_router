@@ -1,0 +1,54 @@
+{
+  "start.intro": "Identify your piano in a few steps.",
+
+  "ask_brand": "Let's start with the brand. What brand is your piano?",
+  "ask_category": "What type of piano is it — upright or grand?",
+  "confirm_save": "You've entered enough information to register your piano. Please confirm if correct.",
+  "final_done": "🎉 All set! Your piano has been registered.",
+
+  "ask_model": "Do you happen to know the model name or number?",
+  "ask_size": "Do you know the piano's size?",
+  "ask_serial": "If you have the serial number, I can estimate the year.",
+
+  "offer_pdf": "Would you like to receive your full report by email?",
+  "offer_photos": "Would you like to upload photos of your piano (optional)?",
+
+  "action.identify_photos": "Identify from photos",
+  "action.speak": "Speak",
+  "action.type": "Type",
+
+  "action.confirm_piano": "Confirm my piano",
+  "action.upload_photos": "Upload photos",
+  "action.receive_pdf": "📄 Receive full report",
+  "action.skip": "Skip this step",
+  "action.start_diag": "Start quick diagnosis",
+  "action.view_pianos": "See my pianos",
+  "action.restart": "Add another piano",
+
+  "action.model_unknown": "I don’t know the model",
+  "action.size_unknown": "I don’t know the size",
+  "action.serial_unknown": "I don’t know the serial number",
+  "action.add_serial": "Add serial number",
+  "action.serial_help": "Where is the serial number?",
+
+  "meta.title": "👋 Let’s start with your piano.",
+  "meta.subtitle": "I’ll help you identify it — quickly and effortlessly.",
+
+  "meta.phase_label": "Identify your piano",
+  "meta.phase_hint": "Step 1 of 3",
+
+  "meta.reward.age": "Estimated age",
+  "meta.reward.type": "Piano type & size",
+  "meta.reward.value": "Estimated value",
+
+  "meta.free.primary": "Free — identify one piano, forever.",
+  "meta.free.secondary": "No credit card · Takes about a minute",
+
+  "meta.empty.chat_hint": "Tell me what you know — or upload a few photos to get started.",
+  "meta.empty.result_title": "Your piano will appear here",
+  "meta.empty.result_subtitle": "As soon as I recognize it.",
+
+  "input.placeholder": "Describe your piano (brand, size, upright or grand…)",
+
+  "meta.voice_hint": "I’ll take care of the boring parts 🐾"
+}

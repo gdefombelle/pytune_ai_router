@@ -1,0 +1,54 @@
+{
+  "start.intro": "Identifions votre piano en quelques étapes.",
+
+  "ask_brand": "Commençons par la marque. Quelle est la marque de votre piano ?",
+  "ask_category": "S’agit-il d’un piano droit ou à queue ?",
+  "confirm_save": "Vous avez saisi suffisamment d’informations pour enregistrer votre piano. Pouvez-vous confirmer ?",
+  "final_done": "🎉 C’est terminé ! Votre piano a bien été enregistré.",
+
+  "ask_model": "Connaissez-vous le modèle ou la référence ?",
+  "ask_size": "Connaissez-vous la taille du piano ?",
+  "ask_serial": "Si vous avez le numéro de série, je peux estimer l’année.",
+
+  "offer_pdf": "Souhaitez-vous recevoir le rapport complet par email ?",
+  "offer_photos": "Souhaitez-vous ajouter des photos du piano (optionnel) ?",
+
+  "action.identify_photos": "Identifier via photos",
+  "action.speak": "Parler",
+  "action.type": "Écrire",
+
+  "action.confirm_piano": "Confirmer mon piano",
+  "action.upload_photos": "Ajouter des photos",
+  "action.receive_pdf": "📄 Recevoir le rapport",
+  "action.skip": "Passer cette étape",
+  "action.start_diag": "Démarrer le diagnostic",
+  "action.view_pianos": "Voir mes pianos",
+  "action.restart": "Ajouter un autre piano",
+
+  "action.model_unknown": "Je ne connais pas le modèle",
+  "action.size_unknown": "Je ne connais pas la taille",
+  "action.serial_unknown": "Je ne connais pas le numéro de série",
+  "action.add_serial": "Ajouter le numéro de série",
+  "action.serial_help": "Où trouver le numéro de série ?",  
+
+  "meta.title": "👋 Commençons avec votre piano.",
+  "meta.subtitle": "Je vous aide à l’identifier — simplement et rapidement.",
+
+  "meta.phase_label": "Identifier votre piano",
+  "meta.phase_hint": "Étape 1 sur 3",
+
+  "meta.reward.age": "Âge estimé",
+  "meta.reward.type": "Type & taille du piano",
+  "meta.reward.value": "Valeur estimée",
+
+  "meta.free.primary": "Gratuit — identifiez un piano pour toujours.",
+  "meta.free.secondary": "Aucune carte · Environ une minute",
+
+  "meta.empty.chat_hint": "Dites-moi ce que vous savez — ou ajoutez quelques photos.",
+  "meta.empty.result_title": "Votre piano apparaîtra ici",
+  "meta.empty.result_subtitle": "Dès qu’il sera reconnu.",
+
+  "input.placeholder": "Décrivez votre piano (marque, taille, droit ou à queue…)",
+
+  "meta.voice_hint": "Je m’occupe des détails 🐾"
+}

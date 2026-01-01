@@ -3,7 +3,13 @@ from openai import OpenAI
 from pytune_configuration import config
 from pathlib import Path
 
-client = OpenAI(api_key=config.OPENAI_API_KEY)
+client = OpenAI(api_key=config.OPEN_AI_PYTUNE_API_KEY)
+SUPPORTED_VOICES = {
+    "alloy", "echo", "fable", "onyx", "nova", "shimmer",
+    "coral", "verse", "ballad", "ash", "sage", "marin", "cedar"
+}
+
+
 
 def generate_tts(
     *,
@@ -15,6 +21,8 @@ def generate_tts(
     """
     Génère un fichier audio OpenAI TTS à l'emplacement demandé.
     """
+    if voice not in SUPPORTED_VOICES:
+        voice = "alloy"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     with client.audio.speech.with_streaming_response.create(

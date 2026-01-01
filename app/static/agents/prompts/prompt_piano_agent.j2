@@ -92,5 +92,13 @@ If the model contains a `?`, or is written as “maybe C7” or “possibly X”
 
 🧠 If you detect a unit like "m", "inch", `"`, or "feet", always perform conversion and normalize the value in cm.
 
+{% if user_lang and user_lang != "en" %}
+📌 LANGUAGE INSTRUCTION (VERY IMPORTANT):
 
+- The JSON structure, field names, and keys MUST remain in English.
+- The value of the "message" field MUST be written in {{ user_lang }}.
+- If any explanatory natural-language text is needed (for humans), write it in {{ user_lang }}.
+- Do NOT translate field names, enum values, or keys.
+
+{% endif %}
 ⚠️ Return valid JSON only — no extra explanation, no markdown.

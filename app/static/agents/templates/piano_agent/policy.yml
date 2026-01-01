@@ -1,0 +1,182 @@
+name: piano_agent
+description: >
+  PyTune Piano Agent — guides the user step-by-step to describe and save their piano.
+  Then concludes the flow with clear next actions.
+
+start:
+  say: "$t('start.intro')"
+
+  actions:
+    - trigger_event: set_placeholder
+      suggest_action: ""
+      params:
+        value: "$t('input.placeholder')"
+
+    - suggest_action: "$t('action.identify_photos')"
+      trigger_event: open_photo_guide
+
+    - suggest_action: "$t('action.speak')"
+      trigger_event: start_voice_input
+
+    - suggest_action: "$t('action.type')"
+      trigger_event: start_typing
+      params:
+        flash_placeholder: true
+
+triggers:
+  - event: page_visit
+    condition: current_page in ["/pianos", "/piano-identify"]
+
+context:
+  fetch:
+    - user_profile
+  extra:
+    - raw_user_input
+    - first_piano
+    - dont_know_flags
+    - metadata
+
+  variables:
+    first_piano: first_piano
+    no_brand: not first_piano or not first_piano.brand
+    no_category: first_piano and first_piano.brand and not first_piano.category
+
+    has_model_hypothesis: metadata.model_hypothesis and metadata.model_hypothesis.name
+    no_model: first_piano and first_piano.category
+              and not first_piano.model
+              and not first_piano.model_dont_know
+              and not has_model_hypothesis
+              and not (first_piano and first_piano.confirmed is True)
+
+    no_size: first_piano and (first_piano.model or first_piano.model_dont_know)
+             and (not first_piano.size_cm or first_piano.size_cm == 0)
+
+    no_serial: first_piano and not first_piano.serial_number and not first_piano.serial_dont_know
+
+    is_confirmed: first_piano and first_piano.confirmed is True
+    can_save: first_piano and first_piano.brand and first_piano.category
+              and (first_piano.model or first_piano.size_cm > 0)
+
+    extracted_from_image: metadata.extracted_from_image is True
+    extracted_from_image_ever: metadata.extracted_from_image is True
+                               or metadata.extracted_from_image_ever is True
+                               or metadata.ui_identified_from_photos is True
+
+    photos_attached: metadata.photos_attached is True
+    photo_step_confirmed: metadata.photo_step_confirmed is True
+                          or first_piano.skipped_upload is True
+
+    pdf_step_done: first_piano
+                   and (first_piano.report_sent is True
+                        or first_piano.skip_pdf_sent is True)
+
+    image_identify_path: extracted_from_image_ever and not photos_attached
+    attach_photos_path: not extracted_from_image_ever or photos_attached
+
+    finish_ready: is_confirmed
+                  and ((image_identify_path and pdf_step_done)
+                       or (attach_photos_path and photo_step_confirmed))
+
+conversation:
+  - if: raw_user_input
+    say: ${llm_response}
+    actions: []
+
+  - elif: no_brand
+    say: "$t('ask_brand')"
+    actions: []
+
+  - elif: no_category
+    say: "$t('ask_category')"
+    actions: []
+
+  - elif: can_save and not is_confirmed
+    say: "$t('confirm_save')"
+    actions:
+      - suggest_action: "$t('action.confirm_piano')"
+        trigger_event: confirm_piano
+
+  - elif: no_model
+    say: "$t('ask_model')"
+    actions:
+      - suggest_action: "$t('action.model_unknown')"
+        trigger_event: set_model_dont_know
+
+  - elif: no_size
+    say: "$t('ask_size')"
+    actions:
+      - suggest_action: "$t('action.size_unknown')"
+        trigger_event: set_size_dont_know
+
+  - elif: no_serial
+    say: "$t('ask_serial')"
+    actions:
+      - suggest_action: "$t('action.add_serial')"
+        route_to: "/pianos"
+      - suggest_action: "$t('action.serial_unknown')"
+        trigger_event: set_serial_dont_know
+      - suggest_action: "$t('action.serial_help')"
+        trigger_event: show_serial_help
+
+  - elif: is_confirmed and image_identify_path and not pdf_step_done
+    say: "$t('offer_pdf')"
+    actions:
+      - suggest_action: "$t('action.receive_pdf')"
+        trigger_event: trigger_pdf_send
+      - suggest_action: "$t('action.skip')"
+        trigger_event: skip_pdf_send
+
+  - elif: is_confirmed and attach_photos_path
+          and not photo_step_confirmed
+          and not extracted_from_image_ever
+    say: "$t('offer_photos')"
+    actions:
+      - suggest_action: "$t('action.upload_photos')"
+        trigger_event: add_photos
+      - suggest_action: "$t('action.skip')"
+        trigger_event: skip_upload
+
+  - elif: finish_ready
+    continue: true
+    say: "$t('final_done')"
+    actions:
+      - trigger_event: open_finish_modal
+      - suggest_action: "$t('action.start_diag')"
+        route_to: "/diag"
+      - suggest_action: "$t('action.view_pianos')"
+        route_to: "/pianos"
+      - suggest_action: "$t('action.restart')"
+        trigger_event: restart_identification
+
+  - else: true
+    continue: true
+    say: ${llm_response}
+    actions: []
+
+metadata:
+  version: "3.6"
+
+  title: "$t('meta.title')"
+  subtitle: "$t('meta.subtitle')"
+
+  phase_label: "$t('meta.phase_label')"
+  phase_hint: "$t('meta.phase_hint')"
+
+  reward_strip:
+    - "$t('meta.reward.age')"
+    - "$t('meta.reward.type')"
+    - "$t('meta.reward.value')"
+
+  free_badge:
+    primary: "$t('meta.free.primary')"
+    secondary: "$t('meta.free.secondary')"
+
+  empty_state:
+    chat_hint: "$t('meta.empty.chat_hint')"
+    result_title: "$t('meta.empty.result_title')"
+    result_subtitle: "$t('meta.empty.result_subtitle')"
+
+  input:
+    placeholder: "$t('input.placeholder')"
+
+  voice_hint: "$t('meta.voice_hint')"

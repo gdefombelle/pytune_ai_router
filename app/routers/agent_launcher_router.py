@@ -23,8 +23,8 @@ from app.utils.dontknow_utils import humanize_dont_know_list, inject_dont_know_m
 router = APIRouter(prefix="/ai/agents", tags=["AI Agents"])
 
 @router.get("/{agent_name}/public-metadata")
-async def get_agent_public_metadata(agent_name: str):
-    policy = load_yaml(agent_name)
+async def get_agent_public_metadata(agent_name: str, lang:str='en'):
+    policy = load_yaml(agent_name, lang)
     metadata = policy.get("metadata", {}) or {}
 
     # ⚠️ filtrer explicitement
@@ -49,7 +49,12 @@ async def start_agent(
 
     # Step 1: Load policy
     await reporter.step("📥 Loading policy")
-    policy = load_yaml(agent_name)
+    lang = (
+        extra_context.get("user_lang")
+        or extra_context.get("language")
+        or "en"
+    )
+    policy = load_yaml(agent_name, lang)
     metadata = policy.get("metadata", {}) or {}
     use_memory = metadata.get("memory") is True
 
@@ -96,6 +101,8 @@ async def start_agent(
 
     await reporter.done()
     return response
+
+
 @router.post("/{agent_name}/evaluate", response_model=AgentResponse)
 async def evaluate_agent(
     agent_name: str,

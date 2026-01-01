@@ -158,7 +158,8 @@ if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # 🎧 TTS audio files (OpenAI speech synthesis)
-TTS_AUDIO_DIR = Path(config.TTS_AUDIO_DIR or "/var/pytune/tts")
+TTS_AUDIO_DIR = Path(os.getenv("TTS_AUDIO_DIR", "/tmp/pytune/tts"))
+TTS_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 if TTS_AUDIO_DIR.exists():
     app.mount(
@@ -168,7 +169,7 @@ if TTS_AUDIO_DIR.exists():
     )
     logger.info(f"🔊 TTS audio mounted at /tts/audio → {TTS_AUDIO_DIR}")
 else:
-    logger.warning(f"⚠️ TTS audio dir not found: {TTS_AUDIO_DIR}")
+    logger.error(f"⚠️ TTS audio dir not found: {TTS_AUDIO_DIR}")
 
 # ❤️ Healthcheck route
 @app.get("/")

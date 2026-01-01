@@ -43,7 +43,7 @@ def should_transition_to_conversation(first_piano: dict) -> bool:
         first_piano.get("category") and
         (first_piano.get("model") or first_piano.get("size_cm") or first_piano.get("type")) and
         (first_piano.get("serial_number") or first_piano.get("year_estimated"))
-    )
+    ) # type: ignore
 
 
 async def piano_agent_handler(
@@ -73,7 +73,7 @@ async def piano_agent_handler(
             ]
             return await run_chat_turn(
                 user_input="",
-                prompt_name="prompt_piano_agent_conversation.j2",
+                prompt_name="prompt_piano_agent_conversation.j2", # type: ignore
                 context=enriched,
                 model="gpt-4"
             )
@@ -95,13 +95,13 @@ async def piano_agent_handler(
 
         return await run_chat_turn(
             user_input=user_message,
-            prompt_name="prompt_piano_agent_conversation.j2",
+            prompt_name="prompt_piano_agent_conversation.j2", # type: ignore
             context=context,
             model="gpt-3.5-turbo"
         )
 
     response = await load_policy_and_resolve(agent_name, context, reporter=reporter)
-    reporter and await reporter.step("🤖 Running policy logic")
+    reporter and await reporter.step("🤖 Running policy logic") # type: ignore
     if not response.context_update or not response.context_update.get("first_piano"):
         try:
             extracted = extract_structured_piano_data(response.message or "")

@@ -1,13 +1,16 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from pathlib import Path
 import hashlib
+import os
+
+from pytune_auth_common.models.schema import UserOut
 
 from app.services.tts_service import generate_tts
 
 router = APIRouter(prefix="/tts", tags=["tts"])
 
-TTS_DIR = Path("/var/pytune/tts")
+TTS_DIR = Path(os.getenv("TTS_AUDIO_DIR", "/tmp/pytune/tts"))
 TTS_DIR.mkdir(parents=True, exist_ok=True)
 
 class TTSRequest(BaseModel):
@@ -16,7 +19,7 @@ class TTSRequest(BaseModel):
     voice: str = "alloy"
 
 @router.post("/speak")
-async def speak(req: TTSRequest):
+async def speak(req: TTSRequest, request:Request):
     key = hashlib.sha1(
         f"{req.text}|{req.lang}|{req.voice}".encode()
     ).hexdigest()
@@ -30,8 +33,8 @@ async def speak(req: TTSRequest):
             output_path=output_path,
             voice=req.voice,
         )
-
+    base = str(request.base_url).rstrip("/")
     return {
-        "audio_url": f"/tts/audio/{filename}",
-        "cached": output_path.exists()
+        "audio_url": f"{base}/tts/audio/{filename}",
+        "cached": output_path.exists(),
     }
