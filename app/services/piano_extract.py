@@ -114,12 +114,16 @@ def extract_structured_piano_data(text: str) -> dict:
 
 def make_readable_message_from_extraction(
     extracted: dict,
-    brand_resolution: dict | None = None
+    brand_resolution: dict | None = None,
+    user_lang: str | None = None,
 ) -> str:
     """
     Construit un message lisible à partir des données extraites par le LLM,
     avec explication des champs reconnus ou des réponses implicites.
     """
+    lang = (user_lang or "en").lower()
+    is_fr = lang.startswith("fr")
+
     fp = extracted.get("first_piano", {}) or {}
     metadata = extracted.get("metadata", {}) or {}
     confidences = extracted.get("confidences", {}) or {}
@@ -130,7 +134,11 @@ def make_readable_message_from_extraction(
         flags = acknowledged if isinstance(acknowledged, list) else [acknowledged]
         readable = humanize_dont_know_list(flags)
         if readable:
-            return f"✅ Got it — {readable}, we can skip it for now."
+            return (
+                f"✅ C’est noté — {readable}, on peut ignorer pour le moment."
+                if is_fr
+                else f"✅ Got it — {readable}, we can skip it for now."
+            )
 
     CATEGORY_MAP = {1: "grand", 2: "upright", "1": "grand", "2": "upright"}
 
@@ -189,10 +197,28 @@ def make_readable_message_from_extraction(
 
     # 💬 Finalisation
     if corrections:
-        return (
-            "🎹 I’ve extracted and updated the following information from your message:\n"
-            + "\n".join(f"- {line}" for line in corrections)
-            + "\n\nLet me know if anything needs to be adjusted or corrected!"
+
+        intro = (
+            "🎹 J’ai extrait et mis à jour les informations suivantes à partir de votre message :"
+            if is_fr
+            else "🎹 I’ve extracted and updated the following information from your message:"
         )
 
-    return "I’ve analyzed your message but couldn’t extract any structured information yet."
+        closing = (
+            "Dites-moi si quelque chose doit être ajusté ou corrigé."
+            if is_fr
+            else "Let me know if anything needs to be adjusted or corrected!"
+        )
+
+        return (
+            intro + "\n"
+            + "\n".join(f"- {line}" for line in corrections)
+            + "\n\n" + closing
+        )
+
+
+    return (
+        "J’ai analysé votre message, mais je n’ai pas encore pu extraire d’informations structurées."
+        if is_fr
+        else "I’ve analyzed your message but couldn’t extract any structured information yet."
+    )

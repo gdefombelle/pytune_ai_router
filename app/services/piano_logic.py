@@ -152,7 +152,7 @@ async def resolve_serial_year(
     return {}
 
 
-def finalize_response_message(response, context_update):
+def finalize_response_message(response, context_update, user_lang:str = 'en'):
     meta = context_update.get("metadata", {}) or {}
     acknowledged = meta.get("acknowledged")
     brand_resolution = context_update.get("brand_resolution")
@@ -171,7 +171,7 @@ def finalize_response_message(response, context_update):
 
     # 🔒 Cas 3 – message vide tout court
     elif not response.message:
-        response.message = make_readable_message_from_extraction(context_update, brand_resolution)
+        response.message = make_readable_message_from_extraction(context_update, brand_resolution, user_lang=user_lang)
 
     # ✅ Ajout final des avertissements éventuels
     warning_text = render_warnings(meta)

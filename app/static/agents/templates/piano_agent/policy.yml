@@ -155,6 +155,15 @@ conversation:
 
 metadata:
   version: "3.6"
+  lang: en
+  allow_interruptions: true
+  llm_backend: openai
+  llm_model: gpt-5-mini
+  memory: true
+  form_context_key: first_piano
+  phase: identify
+  phase_index: 1
+  total_phases: 3
 
   title: "$t('meta.title')"
   subtitle: "$t('meta.subtitle')"

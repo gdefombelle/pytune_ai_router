@@ -106,8 +106,8 @@ async def load_policy_and_resolve(
     done = reporter.done if reporter else (lambda **_: None)
 
     await step("📜 Loading policy")
-
-    policy_data = load_yaml(agent_name, user_context.user_lang)
+    lang = user_context.get("user_lang") or user_context.get("language") or "en"
+    policy_data = load_yaml(agent_name, lang=lang)
 
     # 🔁 Inject chat history
     if chat_id and raw_input:

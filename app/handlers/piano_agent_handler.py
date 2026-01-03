@@ -225,8 +225,13 @@ async def piano_agent_handler(
     response.context_update = context_update
     existing_message = response.message or ""
     reporter and await reporter.step("✅ Finalizing piano insights")
+    user_lang = (
+        context.get("user_lang")
+        or context.get("language")
+        or "en"
+    )
     if "first_piano" in context_update:
-        finalize_response_message(response, context_update)
+        finalize_response_message(response, context_update, user_lang)
 
     if existing_message and existing_message.strip() not in response.message:
         response.message += "\n\n" + existing_message.strip()
@@ -242,8 +247,8 @@ async def piano_agent_start_handler(
 ) -> AgentResponse:
     context = await resolve_user_context(user, extra=extra_context)
     enriched_context = enrich_context(context)
-
-    policy = load_yaml(agent_name)
+    lang = context.get("user_lang") or context.get("language") or "en"
+    policy = load_yaml(agent_name, lang=lang)
 
     response = await load_policy_and_resolve(agent_name, enriched_context)
 
