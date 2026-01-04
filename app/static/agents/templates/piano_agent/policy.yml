@@ -157,8 +157,8 @@ metadata:
   version: "3.6"
   lang: en
   allow_interruptions: true
-  llm_backend: openai
-  llm_model: gpt-5-mini
+  llm_backend: gemini
+  llm_model: gemini-2.0-flash
   memory: true
   form_context_key: first_piano
   phase: identify

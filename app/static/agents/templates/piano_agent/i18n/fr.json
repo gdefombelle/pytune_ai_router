@@ -3,7 +3,7 @@
 
   "ask_brand": "Commençons par la marque. Quelle est la marque de votre piano ?",
   "ask_category": "S’agit-il d’un piano droit ou à queue ?",
-  "confirm_save": "Vous avez saisi suffisamment d’informations pour enregistrer votre piano. Pouvez-vous confirmer ?",
+  "confirm_save": "Les informations sont suffisantes pour enregistrer votre piano. Cliquez sur « Confirmer mon piano » pour valider.",
   "final_done": "🎉 C’est terminé ! Votre piano a bien été enregistré.",
 
   "ask_model": "Connaissez-vous le modèle ou la référence ?",

@@ -3,7 +3,7 @@
 
   "ask_brand": "Let's start with the brand. What brand is your piano?",
   "ask_category": "What type of piano is it — upright or grand?",
-  "confirm_save": "You've entered enough information to register your piano. Please confirm if correct.",
+  "confirm_save": "Les informations sont suffisantes pour enregistrer votre piano. Cliquez sur « Confirmer mon piano » pour valider.",
   "final_done": "🎉 All set! Your piano has been registered.",
 
   "ask_model": "Do you happen to know the model name or number?",
