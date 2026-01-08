@@ -13,12 +13,13 @@ from .age_resolver import resolve_age
 async def resolve_model_fields(
         first_piano: dict, 
         manufacturer_id: int,
-        reporter: Optional[TaskReporter]=None) -> dict:
+        reporter: Optional[TaskReporter]=None,
+        lang:str = 'en') -> dict:
     model = first_piano.get("model")
     if not model:
         return {}
 
-    model_result = await resolve_model_name(model, first_piano, manufacturer_id, reporter=reporter)
+    model_result = await resolve_model_name(model, first_piano, manufacturer_id, lang=lang)
 
     update = {
         "model_resolution": model_result,  # ✅ Toujours renvoyé
@@ -144,11 +145,13 @@ async def resolve_serial_year(
     )
 
     if year:
+        reporter and await reporter.step("📅 Estimating year")
         return {
             "year_estimated": year,
             "year_estimated_confidence": confidence,
             "year_estimated_source": source
         }
+        
     return {}
 
 

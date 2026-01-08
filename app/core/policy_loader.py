@@ -66,9 +66,6 @@ async def start_policy(
     start_block = policy.get("start")
 
     if start_block:
-        if reporter:
-            await reporter.step("📄 Reading start block")
-
         message = interpolate_yaml(start_block.get("say", ""), context)
         actions = start_block.get("actions", [])
 
@@ -80,9 +77,6 @@ async def start_policy(
 
     # 🔁 fallback
     context["raw_user_input"] = ""
-
-    if reporter:
-        await reporter.step("🧠 Resolving fallback policy")
 
     return await load_policy_and_resolve(agent_name, context, reporter=reporter)
 
@@ -105,7 +99,6 @@ async def load_policy_and_resolve(
     step = reporter.step if reporter else (lambda _: None)
     done = reporter.done if reporter else (lambda **_: None)
 
-    await step("📜 Loading policy")
     lang = user_context.get("user_lang") or user_context.get("language") or "en"
     policy_data = load_yaml(agent_name, lang=lang)
 
@@ -117,8 +110,6 @@ async def load_policy_and_resolve(
                 user_context["chat_history"] = chat_history[-10:]
         except Exception as e:
             print("⚠️ Failed to load chat history:", e)
-
-    await step("🧠 Evaluating rules")
 
     evaluated_response = await evaluate_policy(policy_data, user_context)
 
@@ -137,7 +128,7 @@ async def load_policy_and_resolve(
     # LLM partial response
     # --------------------------------------------------------
     if "${llm_response}" in message:
-        await step("🤖 Calling LLM for partial response")
+        await step("🤖 Thinking ...") # type: ignore
         prompt = render_prompt_template(agent_name, user_context)
         llm_response = await call_llm(
             prompt=prompt,
@@ -150,7 +141,7 @@ async def load_policy_and_resolve(
     # Fallback full LLM
     # --------------------------------------------------------
     if not message.strip():
-        await step("💬 No match, fallback to full LLM")
+        await step("💬 No match, fallback to full LLM") # type: ignore
         try:
             prompt = render_prompt_template(agent_name, user_context)
             message = await call_llm(
@@ -164,7 +155,6 @@ async def load_policy_and_resolve(
     # --------------------------------------------------------
     # Structured JSON extraction
     # --------------------------------------------------------
-    await step("🧪 Parsing structured output")
 
     context_update = {}
     try:
@@ -174,8 +164,6 @@ async def load_policy_and_resolve(
             message = message.split("```")[0].strip()
     except Exception as e:
         print("[⚠️ JSON extraction failed]", str(e))
-
-    await done()
 
     return AgentResponse(
         message=message.strip(),

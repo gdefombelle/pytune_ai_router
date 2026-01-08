@@ -34,7 +34,7 @@ def is_identification_complete(first_piano: dict) -> bool:
         and (first_piano.get("size_cm") or first_piano.get("model") or first_piano.get("type"))
         and (first_piano.get("serial_number") or first_piano.get("year_estimated"))
         and first_piano.get("confirmed") is True
-    )
+    ) # type: ignore
 
 def should_transition_to_conversation(first_piano: dict) -> bool:
     return (
@@ -97,11 +97,10 @@ async def piano_agent_handler(
             user_input=user_message,
             prompt_name="prompt_piano_agent_conversation.j2", # type: ignore
             context=context,
-            model="gpt-3.5-turbo"
+            model="gpt-5-mini"
         )
 
     response = await load_policy_and_resolve(agent_name, context, reporter=reporter)
-    reporter and await reporter.step("🤖 Running policy logic") # type: ignore
     if not response.context_update or not response.context_update.get("first_piano"):
         try:
             extracted = extract_structured_piano_data(response.message or "")
@@ -170,7 +169,7 @@ async def piano_agent_handler(
             context_update["first_piano"]["type"] = inferred_type
 
     if brand:
-        reporter and await reporter.step("🔍 Resolving brand")
+        reporter and await reporter.step("🔍 Resolving brand") # type: ignore
         brand_info = await resolve_brand_fields(brand, email, reporter=reporter)
         context_update["brand_resolution"] = brand_info["brand_resolution"]
         manufacturer_id = brand_info["manufacturer_id"]
@@ -191,14 +190,14 @@ async def piano_agent_handler(
             context_update["first_piano"]["brand"] = corrected
 
     if manufacturer_id:
-        reporter and await reporter.step("📅 Estimating year")
         year_info = await resolve_serial_year(first_piano, manufacturer_id, corrected or brand, reporter=reporter)
         if year_info:
             context_update["first_piano"].update(year_info)
 
     if manufacturer_id and first_piano.get("model"):
         reporter and await reporter.step("🔧 Resolving model")
-        model_info = await resolve_model_fields(first_piano, manufacturer_id, reporter=reporter)
+        lang = context.get("user_lang") or 'en'
+        model_info = await resolve_model_fields(first_piano, manufacturer_id, reporter=reporter, lang=lang)
 
         if "first_piano" in model_info:
             enriched_fp = model_info["first_piano"]
@@ -224,7 +223,6 @@ async def piano_agent_handler(
 
     response.context_update = context_update
     existing_message = response.message or ""
-    reporter and await reporter.step("✅ Finalizing piano insights")
     user_lang = (
         context.get("user_lang")
         or context.get("language")

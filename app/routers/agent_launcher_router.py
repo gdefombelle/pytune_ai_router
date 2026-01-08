@@ -48,7 +48,7 @@ async def start_agent(
     reporter = TaskReporter(agent_name, auto_progress=True)
 
     # Step 1: Load policy
-    await reporter.step("📥 Loading policy")
+    await reporter.step(f"📥 Starting agent")
     lang = (
         extra_context.get("user_lang")
         or extra_context.get("language")
@@ -60,21 +60,18 @@ async def start_agent(
 
     # Step 2: Create memory if needed
     conversation_id = None
-    await reporter.step("🧠 Creating memory" if use_memory else "🧠 Skipping memory")
     if use_memory:
         from pytune_chat.store import create_conversation
         conv = await create_conversation(user.id, topic=agent_name)
         conversation_id = str(conv.id)
 
     # Step 3: Resolve context
-    await reporter.step("📥 Resolving context")
     full_context = await resolve_user_context(user, extra=extra_context)
     enriched_context = enrich_context(full_context)
     if conversation_id:
         enriched_context["conversation_id"] = conversation_id
 
     # Step 4: Start policy
-    await reporter.step("🚀 Launching agent")
     response = await start_policy(agent_name, enriched_context, reporter=reporter)
 
     # 🔑 ALWAYS initialize meta
@@ -99,7 +96,7 @@ async def start_agent(
         except Exception as e:
             print(f"⚠️ Failed to log assistant message: {e}")
 
-    await reporter.done()
+    await reporter.step(f"✅ Ready")
     return response
 
 
@@ -115,7 +112,6 @@ async def evaluate_agent(
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
     
     reporter = TaskReporter(agent_name, auto_progress=True)
-    await reporter.step("📦 Resolving context")
     extra_context = payload.get("extra_context", {})
     conversation_id = extra_context.get("conversation_id")
 
@@ -148,10 +144,7 @@ async def evaluate_agent(
         }
 
     # 🤖 Exécution de la policy
-    await reporter.step("📦 Resolving policy")
     response = await load_policy_and_resolve(agent_name, enriched_context, reporter=reporter)
-
-    await reporter.step("✅ Finalizing")
     # 🧠 Historisation mémoire
     if conversation_id and response.message:
         try:
@@ -174,12 +167,9 @@ async def agent_message(
     payload = await request.json()
     message = payload.get("message", "")
     extra_context = payload.get("extra_context", {})
-
-    await reporter.step("📥 Preparing context")
     context = await prepare_enriched_context(user, agent_name, message, extra_context)
 
     if agent_name == "piano_agent":
-        await reporter.step("🎹 Piano agent handler")
         ret = await piano_agent_handler(agent_name, message, context, reporter=reporter)
         await reporter.done()
         return ret

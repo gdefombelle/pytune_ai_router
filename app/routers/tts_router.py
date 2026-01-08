@@ -19,7 +19,7 @@ class TTSRequest(BaseModel):
     voice: str = "alloy"
 
 @router.post("/speak")
-async def speak(req: TTSRequest, request:Request):
+async def speak(req: TTSRequest, request: Request):
     key = hashlib.sha1(
         f"{req.text}|{req.lang}|{req.voice}".encode()
     ).hexdigest()
@@ -33,7 +33,12 @@ async def speak(req: TTSRequest, request:Request):
             output_path=output_path,
             voice=req.voice,
         )
-    base = str(request.base_url).rstrip("/")
+
+    scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("host")
+
+    base = f"{scheme}://{host}"
+
     return {
         "audio_url": f"{base}/tts/audio/{filename}",
         "cached": output_path.exists(),

@@ -16,9 +16,38 @@ Please analyze whether:
 2. It is a commemorative, tribute, or marketing model (e.g., "Chopin", "Liszt").
 3. It refers to a known historical instrument (e.g., a piano played by Chopin, identified by a serial number).
 
+---
+
+STANDARD PIANO SIZE REFERENCE (AUTHORITATIVE – DO NOT OUTPUT)
+
+Use the following size ranges as the canonical reference when determining the piano subtype.
+Base the subtype primarily on size in centimeters.
+
+Upright pianos (vertical):
+
+- Spinet: 91–102 cm  
+- Console: 103–109 cm  
+- Studio upright: 110–123 cm  
+- Full upright: 124–150 cm  
+
+Grand pianos (horizontal):
+
+- Baby grand: 130–155 cm  
+- Medium grand: 156–170 cm  
+- Parlor grand: 171–190 cm  
+- Music room (semi-concert) grand: 191–220 cm  
+- Concert grand: greater than 220 cm  
+
+Decision rules:
+- Never assign an upright subtype to a grand piano or vice versa.
+- If the size is borderline, choose the closest standard category and mention uncertainty in "notes".
+- If size cannot be reliably determined, keep "type" null.
+
+---
+
 🔁 Output Requirements:
 
-Start your reply with a valid **strict JSON object** in the format:
+Start your reply with a valid strict JSON object in the format:
 
 {
   "status": "found" | "not_found" | "informal_reference",
@@ -31,9 +60,29 @@ Start your reply with a valid **strict JSON object** in the format:
   "source": "llm"
 }
 
-Then, **after the JSON**, provide a brief and accessible explanation in plain text for the user interface.
+Then, after the JSON, provide a brief and accessible explanation
+(maximum two short sentences) in plain text for the user interface.
 
-✅ The explanation must be concise, didactic, and historically accurate.
+The explanation must be concise, didactic, and historically accurate.
 
-⚠️ Do not use markdown or code blocks. Do not explain the JSON format. Just output the JSON, followed by the user-facing summary.
+Do not use markdown or code blocks.
+Do not explain the JSON format.
+Just output the JSON, followed by the user-facing summary.
 {% endif %}
+
+---
+
+LANGUAGE RULE
+
+- The JSON object MUST always remain in English:
+  - JSON keys
+  - enum values
+  - fixed fields such as "status", "category", "type"
+
+- The explanatory text written AFTER the JSON (user-facing explanation)
+  MUST be written in {{ user_lang | default("en") }}.
+
+- If {{ user_lang }} is not provided or empty, default to English.
+
+- Do NOT mix languages.
+- Do NOT translate JSON keys or enum values.
