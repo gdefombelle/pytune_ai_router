@@ -4,6 +4,7 @@ from typing import Dict, Optional
 
 from pytune_llm.llm_connector import call_llm
 from pytune_llm.task_reporting.reporter import TaskReporter
+from unidecode import unidecode
 from app.core.prompt_builder import render_prompt_template
 
 from pytune_data.piano_data_service import (
@@ -13,6 +14,8 @@ from pytune_data.piano_data_service import (
 
 from pytune_data.piano_model_data_service import (
     create_piano_model_from_llm,
+    normalize_label,
+    normalize_piano_model_name,
 )
 
 
@@ -44,7 +47,8 @@ async def resolve_model_name(
     # ─────────────────────────────────────────────
     # 1️⃣ Direct DB lookup
     # ─────────────────────────────────────────────
-    result = await search_model_full(model_name, manufacturer_id, email=None)
+    normalized = normalize_piano_model_name(model_name)
+    result = await search_model_full(normalized, manufacturer_id, email=None)
 
     if result:
         reporter and reporter.step(f"🎹 Model {model_name} identified")
@@ -54,6 +58,7 @@ async def resolve_model_name(
         return {
             "status": "found",
             "source": "database",
+            "canonical_name": top.get("name"),  
             **top,
         }
 

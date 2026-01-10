@@ -15,6 +15,8 @@ async def resolve_model_fields(
         manufacturer_id: int,
         reporter: Optional[TaskReporter]=None,
         lang:str = 'en') -> dict:
+    
+    raw_model = first_piano.get("model")
     model = first_piano.get("model")
     if not model:
         return {}
@@ -29,8 +31,14 @@ async def resolve_model_fields(
 
     # ✅ Cas 1 : modèle trouvé dans la base
     if model_result["status"] == "found":
+        display_model = (
+            model_result.get("canonical_name")
+            or model_result.get("name")
+            or raw_model
+        )
+        display_model = display_model.upper() # type: ignore
         update["first_piano"] = {
-            "model": model_result.get("matched_name", model),
+            "model": display_model,
             "type": model_result.get("type"),
             "size_cm": model_result.get("size_cm"),
             "category": model_result.get("kind"),

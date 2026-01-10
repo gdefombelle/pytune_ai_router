@@ -72,6 +72,11 @@ context:
 
     image_identify_path: extracted_from_image_ever and not photos_attached
     attach_photos_path: not extracted_from_image_ever or photos_attached
+    can_estimate_value: first_piano
+      and first_piano.confirmed
+      and (metadata.photos_attached is True
+          or first_piano.serial_number
+          or metadata.extracted_from_image_ever is True)
 
     finish_ready: is_confirmed
                   and ((image_identify_path and pdf_step_done)

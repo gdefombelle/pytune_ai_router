@@ -3,15 +3,15 @@
 
   "ask_brand": "Let's start with the brand. What brand is your piano?",
   "ask_category": "What type of piano is it — upright or grand?",
-  "confirm_save": "Les informations sont suffisantes pour enregistrer votre piano. Cliquez sur « Confirmer mon piano » pour valider.",
+  "confirm_save": "This information is enough to save your piano. Adding photos or the serial number also allows me to estimate its value.",
   "final_done": "🎉 All set! Your piano has been registered.",
 
   "ask_model": "Do you happen to know the model name or number?",
   "ask_size": "Do you know the piano's size?",
-  "ask_serial": "If you have the serial number, I can estimate the year.",
+  "ask_serial": "Si vous avez le numéro de série, je peux estimer l’année et affiner la valeur de votre piano.",
 
   "offer_pdf": "Would you like to receive your full report by email?",
-  "offer_photos": "Would you like to upload photos of your piano (optional)?",
+   "offer_photos": "Would you like to upload photos of your piano? They help estimate its value more accurately.",
 
   "action.identify_photos": "Identify from photos",
   "action.speak": "Speak",
@@ -44,7 +44,7 @@
   "meta.free.primary": "Free — identify one piano, forever.",
   "meta.free.secondary": "No credit card · Takes about a minute",
 
-  "meta.empty.chat_hint": "Tell me what you know — or upload a few photos to get started.",
+  "meta.empty.chat_hint": "Tell me what you know — and add photos or the serial number to get an estimated value.",
   "meta.empty.result_title": "Your piano will appear here",
   "meta.empty.result_subtitle": "As soon as I recognize it.",
 

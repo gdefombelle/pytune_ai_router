@@ -3,15 +3,15 @@
 
   "ask_brand": "Commençons par la marque. Quelle est la marque de votre piano ?",
   "ask_category": "S’agit-il d’un piano droit ou à queue ?",
-  "confirm_save": "Les informations sont suffisantes pour enregistrer votre piano. Cliquez sur « Confirmer mon piano » pour valider.",
+  "confirm_save": "Ces informations suffisent pour enregistrer votre piano. En ajoutant des photos ou le numéro de série, je pourrai aussi estimer sa valeur.",
   "final_done": "🎉 C’est terminé ! Votre piano a bien été enregistré.",
 
   "ask_model": "Connaissez-vous le modèle ou la référence ?",
   "ask_size": "Connaissez-vous la taille du piano ?",
-  "ask_serial": "Si vous avez le numéro de série, je peux estimer l’année.",
+  "ask_serial":"Si vous avez le numéro de série, je peux estimer l’année et affiner la valeur de votre piano.",
 
   "offer_pdf": "Souhaitez-vous recevoir le rapport complet par email ?",
-  "offer_photos": "Souhaitez-vous ajouter des photos du piano (optionnel) ?",
+  "offer_photos": "Souhaitez-vous ajouter des photos du piano ? Elles permettent d’estimer plus précisément sa valeur.",
 
   "action.identify_photos": "Identifier via photos",
   "action.speak": "Parler",
@@ -44,8 +44,8 @@
   "meta.free.primary": "Gratuit — identifiez un piano pour toujours.",
   "meta.free.secondary": "Aucune carte · Environ une minute",
 
-  "meta.empty.chat_hint": "Dites-moi ce que vous savez — ou ajoutez quelques photos.",
-  "meta.empty.result_title": "Votre piano apparaîtra ici",
+  "meta.empty.chat_hint": "Dites-moi ce que vous savez — et ajoutez des photos ou le numéro de série pour obtenir une estimation de valeur.",
+
   "meta.empty.result_subtitle": "Dès qu’il sera reconnu.",
 
   "input.placeholder": "Décrivez votre piano (marque, taille, droit ou à queue…)",
