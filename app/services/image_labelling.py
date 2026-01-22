@@ -22,8 +22,6 @@ async def label_images_from_session(
     if not session or not session.image_urls:
         raise ValueError(f"No images found for session_id={session_id}")
 
-    if reporter:
-        await reporter.step(f"🏷️ Labelling {len(session.image_urls)} photos in parallel")
 
     # 🧠 Prépare image_data (avec métadonnées si dispo)
     if session.photo_metadata:

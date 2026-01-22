@@ -3,8 +3,9 @@
 
   "ask_brand": "Let's start with the brand. What brand is your piano?",
   "ask_category": "What type of piano is it — upright or grand?",
-  "confirm_save": "This information is enough to save your piano. Adding photos or the serial number also allows me to estimate its value.",
+  "confirm_save": "This information is enough to save your piano.",
   "final_done": "🎉 All set! Your piano has been registered.",
+  "final_chat_open": "🎶 Your piano is now saved.\n\nIf you'd like, tell me more about it:\nhow you use it, its history, or how it feels to play.",
 
   "ask_model": "Do you happen to know the model name or number?",
   "ask_size": "Do you know the piano's size?",
@@ -30,7 +31,7 @@
   "action.serial_unknown": "I don’t know the serial number",
   "action.add_serial": "Add serial number",
   "action.serial_help": "Where is the serial number?",
-
+  
   "meta.title": "👋 Let’s start with your piano.",
   "meta.subtitle": "I’ll help you identify it — quickly and effortlessly.",
 

@@ -26,6 +26,18 @@ from app.services.piano_logic import (
 )
 import re
 from app.utils.normalize_piano_data import normalize_piano_data
+from pytune_configuration import SimpleConfig, config
+
+from app.core.prompt_builder import load_prompt_template_source
+
+config = config or SimpleConfig()
+
+def normalize_chat_history(raw_history: list) -> list:
+    return [
+        {"role": m["role"], "content": m["content"]}
+        for m in raw_history
+        if isinstance(m, dict) and m.get("role") in ("user", "assistant")
+    ]
 
 def is_identification_complete(first_piano: dict) -> bool:
     return (
@@ -36,93 +48,134 @@ def is_identification_complete(first_piano: dict) -> bool:
         and first_piano.get("confirmed") is True
     ) # type: ignore
 
-def should_transition_to_conversation(first_piano: dict) -> bool:
-    return (
-        first_piano.get("confirmed") is True and
-        first_piano.get("brand") and
-        first_piano.get("category") and
-        (first_piano.get("model") or first_piano.get("size_cm") or first_piano.get("type")) and
-        (first_piano.get("serial_number") or first_piano.get("year_estimated"))
-    ) # type: ignore
+def should_transition_to_conversation(
+    first_piano: dict,
+    confirmed: bool | None = None,
+) -> bool:
+    is_confirmed = (
+        confirmed is True
+        or first_piano.get("confirmed") is True
+    )
 
+    return (
+        is_confirmed
+        and first_piano.get("brand")
+        and first_piano.get("category")
+        and (first_piano.get("model") or first_piano.get("size_cm") or first_piano.get("type"))
+        and (first_piano.get("serial_number") or first_piano.get("year_estimated"))
+    )  # type: ignore type: ignore
 
 async def piano_agent_handler(
-        agent_name: str,
-        user_message: str, 
-        context: dict,
-        reporter: Optional[TaskReporter]) -> AgentResponse:
+    agent_name: str,
+    user_message: str,
+    context: dict,
+    reporter: Optional[TaskReporter],
+) -> AgentResponse:
+
     conversation_id_str = context.get("conversation_id")
     first_piano = context.get("first_piano", {})
 
-    if user_message.strip() == "__trigger_event__:skip_upload":
-        print("⏭️ Skipping upload step — checking for mode transition...")
+    # ============================================
+    # 🧭 TRANSITION VERS CONVERSATION LIBRE
+    # ============================================
+    snapshot_fp = (
+        context.get("agent_form_snapshot", {}).get("first_piano")
+        if isinstance(context.get("agent_form_snapshot"), dict)
+        else {}
+    )
+
+    confirmed_effective = (
+        snapshot_fp.get("confirmed")
+        if snapshot_fp is not None
+        else first_piano.get("confirmed")
+    )
+
+    is_skip_upload = user_message.strip() == "__trigger_event__:skip_upload"
+
+    if should_transition_to_conversation(first_piano, confirmed_effective) or is_skip_upload:
         enriched = enrich_context(context)
-        if should_transition_to_conversation(enriched.get("first_piano", {})):
+
+        if should_transition_to_conversation(enriched.get("first_piano", {}), confirmed_effective):
             chat_history = []
-            conversation_id_str = context.get("conversation_id")
+            uuid_ = None
+
             if conversation_id_str:
                 try:
                     uuid_ = UUID(conversation_id_str)
-                    chat_history = await get_conversation_history(uuid_)
+                    raw_history = await get_conversation_history(uuid_)
+                    chat_history = normalize_chat_history(raw_history)
                 except Exception as e:
                     print("⚠️ Could not fetch chat history:", e)
 
-            enriched["chat_history"] = [
-                {"role": m.role, "content": m.content}
-                for m in chat_history if m.role in ("user", "assistant")
-            ]
-            return await run_chat_turn(
-                user_input="",
-                prompt_name="prompt_piano_agent_conversation.j2", # type: ignore
+            enriched["chat_history"] = chat_history
+            template_source = load_prompt_template_source(
+                "prompt_piano_agent_conversation.j2"
+            )
+            return_text = await run_chat_turn(
+                template_source=template_source,
                 context=enriched,
-                model="gpt-4"
+                history=chat_history,
+                user_input="" if is_skip_upload else user_message,
+                model=config.LLM_DEFAULT_MODEL,
+                backend=config.LLM_BACKEND,
+                reporter=reporter,
             )
 
-    if is_identification_complete(first_piano):
-        chat_history = []
-        if conversation_id_str:
-            try:
-                uuid_ = UUID(conversation_id_str)
-                chat_history = await get_conversation_history(uuid_)
-            except Exception as e:
-                print("⚠️ Could not fetch chat history:", e)
+            # ============================================
+            # 🚨 OFF TOPIC (conversation libre)
+            # ============================================
+            if return_text and return_text.strip() == "[OFF_TOPIC]":
+                return AgentResponse(
+                    message="⚠️ I can only talk about your piano, music, or your playing. Let’s stay there.",
+                    context_update={
+                        "metadata": {"off_topic": True}
+                    },
+                    actions=[],
+                    status="off_topic",
+                )
 
-        convo_messages = [
-            {"role": m.role, "content": m.content}
-            for m in chat_history if m.role in ("user", "assistant")
-        ]
-        context["chat_history"] = convo_messages
+            # ✅ Réponse normale
+            return AgentResponse(
+                message=return_text,
+                context_update=None,
+                actions=[],
+            )
 
-        return await run_chat_turn(
-            user_input=user_message,
-            prompt_name="prompt_piano_agent_conversation.j2", # type: ignore
-            context=context,
-            model="gpt-5-mini"
-        )
+    # ============================================
+    # 🧠 MODE AGENT GUIDÉ (POLICY)
+    # ============================================
 
     response = await load_policy_and_resolve(agent_name, context, reporter=reporter)
+
+    # ============================================
+    # 🔍 EXTRACTION STRUCTURÉE (fallback LLM)
+    # ============================================
+
     if not response.context_update or not response.context_update.get("first_piano"):
         try:
             extracted = extract_structured_piano_data(response.message or "")
             if extracted:
                 extracted_fp = extracted.get("first_piano") or extracted
-                existing_fp = context.get("first_piano", {})
-                merged_fp = merge_first_piano_data(existing_fp, extracted_fp)
-
-                existing_meta = response.context_update.get("metadata", {}) if response.context_update else {}
-                extracted_meta = extracted.get("metadata", {})
+                merged_fp = merge_first_piano_data(
+                    context.get("first_piano", {}),
+                    extracted_fp
+                )
 
                 response.context_update = {
                     "first_piano": merged_fp,
                     "confidences": extracted.get("confidences", {}),
                     "metadata": {
-                        **existing_meta,
-                        **extracted_meta,
-                        "extracted_from_llm_output": True
-                    }
+                        **(response.context_update or {}).get("metadata", {}),
+                        **extracted.get("metadata", {}),
+                        "extracted_from_llm_output": True,
+                    },
                 }
         except Exception as e:
             print("⚠️ Failed to extract structured piano data:", e)
+
+    # ============================================
+    # 🧹 CLEANUP + MERGE FINAL
+    # ============================================
 
     if response.context_update and "first_piano" in response.context_update:
         merged_fp = merge_first_piano_data(
@@ -136,11 +189,18 @@ async def piano_agent_handler(
         response.context_update["first_piano"] = cleaned_fp
         response.context_update["metadata"] = cleaned_meta
 
-    # 🧼 Si le message LLM contient du JSON en fin de texte, on le retire
+    # ============================================
+    # 🧼 STRIP JSON TRAILER FROM MESSAGE
+    # ============================================
+
     if response.message:
         match = re.search(r"^(.*?)\n?{[\s\S]+}", response.message.strip())
         if match:
             response.message = match.group(1).strip()
+
+    # ============================================
+    # 💾 STORE CHAT HISTORY
+    # ============================================
 
     if conversation_id_str:
         try:
@@ -152,10 +212,19 @@ async def piano_agent_handler(
         except Exception as e:
             print("⚠️ Failed to store chat history:", e)
 
-    if response.context_update and response.context_update.get("metadata", {}).get("off_topic"):
-        response.status = "off_topic"
+    # ============================================
+    # 🚨 OFF TOPIC (conversation mode)
+    # ============================================
+    if response.message and response.message.strip().startswith("[OFF_TOPIC]"):
+        response.context_update = response.context_update or {}
+        response.context_update.setdefault("metadata", {})["off_topic"] = True
+        response.message = None          # ⛔ ne rien afficher
         response.actions = []
+        response.status = "off_topic"
         return response
+    # ============================================
+    # 🔧 DOMAIN ENRICHMENT (brand / model / year)
+    # ============================================
 
     context_update = response.context_update or {}
     first_piano = context_update.get("first_piano", {})
@@ -169,7 +238,7 @@ async def piano_agent_handler(
             context_update["first_piano"]["type"] = inferred_type
 
     if brand:
-        reporter and await reporter.step("🔍 Resolving brand") # type: ignore
+        reporter and await reporter.step("🔍 Resolving brand")
         brand_info = await resolve_brand_fields(brand, email, reporter=reporter)
         context_update["brand_resolution"] = brand_info["brand_resolution"]
         manufacturer_id = brand_info["manufacturer_id"]
@@ -195,9 +264,14 @@ async def piano_agent_handler(
             context_update["first_piano"].update(year_info)
 
     if manufacturer_id and first_piano.get("model"):
-        reporter and await reporter.step("🔧 Resolving model")
-        lang = context.get("user_lang") or 'en'
-        model_info = await resolve_model_fields(first_piano, manufacturer_id, reporter=reporter, lang=lang)
+        reporter and await reporter.step("🔧 Resolving model") # type: ignore
+        lang = context.get("user_lang") or "en"
+        model_info = await resolve_model_fields(
+            first_piano,
+            manufacturer_id,
+            reporter=reporter,
+            lang=lang
+        )
 
         if "first_piano" in model_info:
             enriched_fp = model_info["first_piano"]
@@ -215,89 +289,19 @@ async def piano_agent_handler(
         if llm_notes and llm_notes not in message:
             message += "\n\n" + llm_notes
 
-        if message:
-            response.message = message
+        if model_info.get("message"):
+            response.message = model_info["message"]
 
-        if "actions" in model_info:
+        if model_info.get("actions"):
             response.actions = model_info["actions"]
 
-    response.context_update = context_update
-    existing_message = response.message or ""
-    user_lang = (
-        context.get("user_lang")
-        or context.get("language")
-        or "en"
-    )
+        response.context_update = context_update
+
     if "first_piano" in context_update:
-        finalize_response_message(response, context_update, user_lang)
-
-    if existing_message and existing_message.strip() not in response.message:
-        response.message += "\n\n" + existing_message.strip()
-
-    return response
-
-
-async def piano_agent_start_handler(
-    agent_name: str,
-    extra_context: dict,
-    user: UserOut,
-    conversation_id: Optional[str] = None,
-) -> AgentResponse:
-    context = await resolve_user_context(user, extra=extra_context)
-    enriched_context = enrich_context(context)
-    lang = context.get("user_lang") or context.get("language") or "en"
-    policy = load_yaml(agent_name, lang=lang)
-
-    response = await load_policy_and_resolve(agent_name, enriched_context)
-
-    # Marque & datation
-    context_update = response.context_update or {}
-    first_piano = context_update.get("first_piano", {})
-    brand = first_piano.get("brand")
-    serial = first_piano.get("serial_number")
-    email = enriched_context.get("email", "")
-    context_update = {}
-    if brand:
-        result = await resolve_brand_name(brand, email)
-        context_update["brand_resolution"] = result
-
-        corrected = (
-            result.get("matched_name") or
-            result.get("corrected") or
-            result.get("llm_data", {}).get("brand")
+        finalize_response_message(
+            response,
+            context_update,
+            context.get("user_lang") or context.get("language") or "en"
         )
 
-        if result["status"] == "rejected":
-            response.message = (
-                f"\u26a0\ufe0f The brand **{brand}** doesn’t appear to be a known piano manufacturer.\n"
-                f"If you're unsure, please upload other photos of the piano’s logo or fallboard."
-            )
-            response.actions = [{
-                "label": "📸 Upload a photo",
-                "type": "upload",
-                "target": "photo_upload"
-            }]
-            context_update["first_piano"]["brand"] = ""
-
-        elif corrected and corrected != brand:
-            context_update["first_piano"]["brand"] = corrected
-            response.message += (
-                f"\n\n🔎 It looks like you meant **{corrected}** instead of **{brand}**. "
-                "You can correct it below if needed, or upload a photo to confirm."
-            )
-
-    if brand and serial:
-        resolved = await resolve_age(brand, serial)
-        if resolved:
-            context_update["first_piano"].update(resolved)
-
-    response.context_update = context_update
-
-    if conversation_id:
-        response.meta = {
-            **response.meta,
-            "conversation_id": conversation_id
-        }
-
     return response
-

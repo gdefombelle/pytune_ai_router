@@ -1,4 +1,5 @@
 # 👈 ← Construit le prompt à partir de la policy
+from pathlib import Path
 from typing import Optional
 
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
@@ -54,3 +55,17 @@ def render_prompt_template(agent_name: str, context: dict) -> str:
     except Exception as e:
         print(f"⚠️ Jinja2 rendering error for '{agent_name}':", str(e))
         raise
+
+def load_prompt_template_source(template_name: str) -> str:
+    """
+    Charge le contenu brut d’un template Jinja (.j2) depuis PROMPT_DIR.
+
+    Ex:
+        load_prompt_template_source("prompt_piano_agent_conversation.j2")
+    """
+    path = Path(PROMPT_DIR) / template_name
+
+    if not path.exists():
+        raise FileNotFoundError(f"Prompt template not found: {path}")
+
+    return path.read_text(encoding="utf-8")

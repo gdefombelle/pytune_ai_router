@@ -18,15 +18,11 @@ async def trigger_music_source_enrichment(
     reporter: Optional[TaskReporter] = None
 ):
     if not sheet_music:
-        if reporter:
-            await reporter.log("No sheet music detected — skipping enrichment.")
         return
 
     # 1. Get user profile (level, style, etc.)
     user_context = await get_user_context(user_id)
     if not user_context:
-        if reporter:
-            await reporter.log(f"User profile not found for user_id={user_id}")
         return
 
     # 2. Clean minimal piano data
@@ -38,7 +34,6 @@ async def trigger_music_source_enrichment(
         "size_cm": piano_data.get("size_cm"),
     }
     
-    reporter and await reporter.log(f"[DEBUG] piano_fp: {piano_fp}")
 
     # 3. Build prompt
     prompt = render_prompt_template(
@@ -69,12 +64,9 @@ async def trigger_music_source_enrichment(
     try:
         data = json.loads(json_str)
     except Exception as e:
-        if reporter:
-            await reporter.log(f"Failed to parse music source JSON: {e}")
+        print(f"Failed to parse music source JSON: {e}")
         return
 
     # 6. Store in DB
-    await update_identification_session(session_id, music_sources=data)
+    await update_identification_session(session_id, music_sources=data) # type: ignore
 
-    if reporter:
-        await reporter.log("🎼 Music sources stored successfully.")

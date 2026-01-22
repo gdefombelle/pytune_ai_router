@@ -100,6 +100,7 @@ conversation:
     actions:
       - suggest_action: "$t('action.confirm_piano')"
         trigger_event: confirm_piano
+        
 
   - elif: no_model
     say: "$t('ask_model')"
@@ -137,21 +138,17 @@ conversation:
     say: "$t('offer_photos')"
     actions:
       - suggest_action: "$t('action.upload_photos')"
-        trigger_event: add_photos
+        trigger_event: trigger_upload
       - suggest_action: "$t('action.skip')"
         trigger_event: skip_upload
 
   - elif: finish_ready
     continue: true
-    say: "$t('final_done')"
+    say: "$t('final_chat_open')"
     actions:
       - trigger_event: open_finish_modal
       - suggest_action: "$t('action.start_diag')"
         route_to: "/diag"
-      - suggest_action: "$t('action.view_pianos')"
-        route_to: "/pianos"
-      - suggest_action: "$t('action.restart')"
-        trigger_event: restart_identification
 
   - else: true
     continue: true

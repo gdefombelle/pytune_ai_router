@@ -2,7 +2,7 @@
 import asyncio
 import json
 from typing import Annotated, List, Optional
-from fastapi import Depends, Form, UploadFile, File, HTTPException
+from fastapi import Depends, Form, Query, Request, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import ValidationError
 from pytune_auth_common.models.schema import UserOut
@@ -154,9 +154,14 @@ async def guess_model_from_images(
         "photos": [f.filename for f in files]
     }
 
-@router.post("/photos/identify/{manufacturer_id}", response_model=AgentResponse)
+@router.options("/photos/identify")
+async def identify_photos_options(request: Request):
+    # ⚠️ surtout ne rien mettre ici
+    # le middleware CORS ajoutera les headers
+    return {}
+@router.post("/photos/identify", response_model=AgentResponse)
 async def identify_from_photos(
-    manufacturer_id: int,
+    manufacturer_id: Optional[int] = Query(0),
     files: list[UploadFile] = File(...),
     user: UserOut = Depends(get_current_user)
 ):
@@ -166,7 +171,7 @@ async def identify_from_photos(
     reporter = TaskReporter("piano_agent", auto_progress=True)
 
     # 🖼️ Upload
-    await reporter.step("📤 Uploading photos to MinIO")
+    await reporter.step("📤 Uploading your photos")
     photo_metadata = []
     urls = []
 
@@ -206,7 +211,6 @@ async def identify_from_photos(
         raise HTTPException(status_code=500, detail=f"Identification failed: {e}")
 
     # 🗂️ Session
-    await reporter.step("🗂️ Creating session")
     try:
         context_snapshot = build_context_snapshot(result, manufacturer_id)
         session = await create_identification_session(
@@ -238,8 +242,6 @@ async def identify_from_photos(
     except Exception as e:
         logger.warning(f"Model hypothesis failed: {e}")
         model_hypothesis = {}
-
-    await reporter.step("✅ Preparing final response")
 
     # 🎯 AgentResponse
     fp = {
@@ -319,7 +321,7 @@ async def upload_photos_for_piano_id(
     reporter = TaskReporter("piano_agent", auto_progress=True)
 
     # 1) Upload vers MinIO
-    await reporter.step("📤 Uploading photos to MinIO")
+    await reporter.step("📤 Safely storing photos")
     uploaded_urls: list[str] = []
     uploaded_meta_list: list[dict] = []
 
@@ -348,7 +350,6 @@ async def upload_photos_for_piano_id(
             raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
 
     # 2) Session : réutiliser si possible, sinon créer
-    await reporter.step("🗂️ Attaching to session")
     session: Optional[PianoIdentificationSession] = None
     if user_piano.piano_identification_session_id:
         session = await PianoIdentificationSession.get_or_none(
@@ -455,114 +456,114 @@ async def upload_photos_for_piano_id(
     )
 
 # routes
-@router.post("/piano/save", summary="Confirm and save user's piano model",
-             response_model=SaveUserPianoModelOut)
-async def save_user_piano_model(
-    payload: UserPianoModelCreate,
-    current_user: UserOut = Depends(get_current_user),
-):
-    from pytune_data.piano_model_data_service import resolve_model
-    reporter = TaskReporter("piano_agent", total_steps=1)
-    await reporter.step("💾 Saving your piano...")
+# @router.post("/piano/save", summary="Confirm and save user's piano model",
+#              response_model=SaveUserPianoModelOut)
+# async def save_user_piano_model(
+#     payload: UserPianoModelCreate,
+#     current_user: UserOut = Depends(get_current_user),
+# ):
+#     from pytune_data.piano_model_data_service import resolve_model
+#     reporter = TaskReporter("piano_agent", total_steps=1)
+#     await reporter.step("💾 Saving your piano...")
 
-    try:
-        user = await get_user_by_id(current_user.id)
+#     try:
+#         user = await get_user_by_id(current_user.id)
 
-        # (facultatif) réutiliser la session si fournie; ne PAS lever 404 si absente
-        session = None
-        if payload.piano_identification_session_id:
-            session = await PianoIdentificationSession.get_or_none(
-                id=payload.piano_identification_session_id
-            )
-            # si non trouvée, on laisse session=None et on continue; on peut logger si besoin
+#         # (facultatif) réutiliser la session si fournie; ne PAS lever 404 si absente
+#         session = None
+#         if payload.piano_identification_session_id:
+#             session = await PianoIdentificationSession.get_or_none(
+#                 id=payload.piano_identification_session_id
+#             )
+#             # si non trouvée, on laisse session=None et on continue; on peut logger si besoin
 
-        # Résoudre un modèle connu si possible
-        # Résoudre un modèle connu si possible
-        pianomodel_fk: Optional[int] = None
+#         # Résoudre un modèle connu si possible
+#         # Résoudre un modèle connu si possible
+#         pianomodel_fk: Optional[int] = None
 
-        if payload.pianomodel_id:
-            pianomodel_fk = payload.pianomodel_id
+#         if payload.pianomodel_id:
+#             pianomodel_fk = payload.pianomodel_id
 
-        else:
-            model_label: Optional[str] = payload.model_name
+#         else:
+#             model_label: Optional[str] = payload.model_name
 
-            # Fallback sur hypothesized_model si model_name est vide
-            if not model_label and payload.extra_data:
-                hypo = payload.extra_data.get("hypothesized_model")
-                if hypo:
-                    model_label = f"~{hypo}"  # ou juste hypo si tu ne veux pas du ~ dans le resolver
+#             # Fallback sur hypothesized_model si model_name est vide
+#             if not model_label and payload.extra_data:
+#                 hypo = payload.extra_data.get("hypothesized_model")
+#                 if hypo:
+#                     model_label = f"~{hypo}"  # ou juste hypo si tu ne veux pas du ~ dans le resolver
 
-            if payload.manufacturer_id and model_label:
-                pianomodel_fk = await resolve_model(
-                    manufacturer_id=payload.manufacturer_id,
-                    raw_label=model_label
-                )
+#             if payload.manufacturer_id and model_label:
+#                 pianomodel_fk = await resolve_model(
+#                     manufacturer_id=payload.manufacturer_id,
+#                     raw_label=model_label
+#                 )
 
-        if pianomodel_fk:
-            logger.info(f"🎹 Model resolved: {pianomodel_fk} for label '{payload.model_name}'")
-        else:
-            logger.warning(f"⚠️ No model match for '{payload.model_name}' (manufacturer_id={payload.manufacturer_id})")
+#         if pianomodel_fk:
+#             logger.info(f"🎹 Model resolved: {pianomodel_fk} for label '{payload.model_name}'")
+#         else:
+#             logger.warning(f"⚠️ No model match for '{payload.model_name}' (manufacturer_id={payload.manufacturer_id})")
 
-        kind_id: Optional[int] = None
-        if payload.kind:
-            kind_id = resolve_kind_id(payload.kind)
+#         kind_id: Optional[int] = None
+#         if payload.kind:
+#             kind_id = resolve_kind_id(payload.kind)
 
-        piano_type_id: Optional[int] = None
-        if kind_id and payload.type_label:
-            piano_type_id = await resolve_piano_type_id(
-                kind_id=kind_id,
-                piano_type_label=payload.type_label,
-                size_cm=payload.size_cm
-            )
+#         piano_type_id: Optional[int] = None
+#         if kind_id and payload.type_label:
+#             piano_type_id = await resolve_piano_type_id(
+#                 kind_id=kind_id,
+#                 piano_type_label=payload.type_label,
+#                 size_cm=payload.size_cm
+#             )
 
-        if not session:
-            # 🗂️ Session
-            await reporter.step("🗂️ Creating session")
-            session = await create_identification_session(
-                user_id=current_user.id,
-                image_urls=[],  # requis même si vide
-                photo_labels=None,
-                photo_metadata=None,
-                context_snapshot=None,
-                model_hypothesis=None,
-                metadata=None,
-                conversation_id=payload.conversation_id  # <-- nouveau champ à passer
-            )
+#         if not session:
+#             # 🗂️ Session
+#             await reporter.step("🗂️ Creating session")
+#             session = await create_identification_session(
+#                 user_id=current_user.id,
+#                 image_urls=[],  # requis même si vide
+#                 photo_labels=None,
+#                 photo_metadata=None,
+#                 context_snapshot=None,
+#                 model_hypothesis=None,
+#                 metadata=None,
+#                 conversation_id=payload.conversation_id  # <-- nouveau champ à passer
+#             )
 
 
-        # ✅ IMPORTANT : utiliser le bon nom de champ pour la FK modèle
-        user_piano = await UserPianoModel.create(
-            user=user,
-            piano_model_id=pianomodel_fk,                         # mapping FK correct
-            manufacturer_id=payload.manufacturer_id,
-            name=payload.name,
-            location=payload.location,
-            serial_number=payload.serial_number,
-            manufacture_year=payload.manufacture_year,
-            purchase_year=payload.purchase_year,
-            notes=payload.notes,
-            model_name=model_label,
-            kind=payload.kind,
-            type_label=payload.type_label,
-            size_cm=payload.size_cm,                              # ⚠️ size_cm (pas size)
-            keys=payload.keys,
-            extra_data=payload.extra_data or {},
-            piano_identification_session_id=payload.piano_identification_session_id,
-            kind_id= kind_id,
-            piano_type_id=piano_type_id
-        )
+#         # ✅ IMPORTANT : utiliser le bon nom de champ pour la FK modèle
+#         user_piano = await UserPianoModel.create(
+#             user=user,
+#             piano_model_id=pianomodel_fk,                         # mapping FK correct
+#             manufacturer_id=payload.manufacturer_id,
+#             name=payload.name,
+#             location=payload.location,
+#             serial_number=payload.serial_number,
+#             manufacture_year=payload.manufacture_year,
+#             purchase_year=payload.purchase_year,
+#             notes=payload.notes,
+#             model_name=model_label,
+#             kind=payload.kind,
+#             type_label=payload.type_label,
+#             size_cm=payload.size_cm,                              # ⚠️ size_cm (pas size)
+#             keys=payload.keys,
+#             extra_data=payload.extra_data or {},
+#             piano_identification_session_id=payload.piano_identification_session_id,
+#             kind_id= kind_id,
+#             piano_type_id=piano_type_id
+#         )
 
-        await reporter.done("✅ Piano saved!")
-        return SaveUserPianoModelOut(
-            success=True,
-            user_piano_id=user_piano.id,
-            manufacturer_id=user_piano.manufacturer_id,
-            pianomodel_id=pianomodel_fk,
-            piano_identification_session_id=user_piano.piano_identification_session_id,
-        )
+#         await reporter.done("✅ Piano saved!")
+#         return SaveUserPianoModelOut(
+#             success=True,
+#             user_piano_id=user_piano.id,
+#             manufacturer_id=user_piano.manufacturer_id,
+#             pianomodel_id=pianomodel_fk,
+#             piano_identification_session_id=user_piano.piano_identification_session_id,
+#         )
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save piano: {e}")
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Failed to save piano: {e}")
 

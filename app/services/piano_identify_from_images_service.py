@@ -54,7 +54,7 @@ async def identify_piano_from_images(
 
         await asyncio.sleep(0.01)
 
-        raw_content = llm_response["choices"][0]["message"]["content"]
+        raw_content = llm_response["raw_text"]
         match = re.search(r"```json\s*(\{.*?\})\s*```", raw_content, re.DOTALL)
         json_str = match.group(1) if match else raw_content.strip()
         data = json.loads(json_str)

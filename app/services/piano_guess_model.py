@@ -9,12 +9,8 @@ async def guess_model_from_images(
         data: dict, 
         image_urls: List[str],
         reporter: Optional[TaskReporter]) -> dict:
-    
-    reporter and await reporter.step("🧠 Preparing prompt")
 
     prompt = render_prompt_template("guess_model", context=data)
-
-    reporter and await reporter.step("🛰️ Sending images to Vision LLM")
 
     llm_response = await call_llm_vision(
         prompt=prompt,
@@ -22,9 +18,7 @@ async def guess_model_from_images(
         reporter=reporter
     )
 
-    reporter and await reporter.step("📤 Parsing LLM response")
-
-    raw_content = llm_response["choices"][0]["message"]["content"]
+    raw_content = llm_response.get("raw_text", "")
     match = re.search(r"```json\s*(\{.*?\})\s*```", raw_content, re.DOTALL)
     json_str = match.group(1) if match else raw_content.strip()
 
@@ -32,4 +26,5 @@ async def guess_model_from_images(
         return json.loads(json_str)
     except json.JSONDecodeError as e:
         print("⚠️ JSON decode error:", e)
+        print("Raw content was:\n", raw_content)
         return {}
