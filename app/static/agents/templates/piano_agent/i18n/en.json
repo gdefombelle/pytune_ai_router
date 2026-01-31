@@ -6,7 +6,7 @@
   "confirm_save": "This information is enough to save your piano.",
   "final_done": "🎉 All set! Your piano has been registered.",
   "final_chat_open": "🎶 Your piano is now saved.\n\nIf you'd like, tell me more about it:\nhow you use it, its history, or how it feels to play.",
-
+  "final_email_beautify" :"✨ One last thing…\nWe’re creating a beautifully enhanced image of your piano.\nYou’ll receive it shortly by email 🎹",
   "ask_model": "Do you happen to know the model name or number?",
   "ask_size": "Do you know the piano's size?",
   "ask_serial": "Si vous avez le numéro de série, je peux estimer l’année et affiner la valeur de votre piano.",

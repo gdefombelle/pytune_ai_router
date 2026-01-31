@@ -66,10 +66,6 @@ context:
     photo_step_confirmed: metadata.photo_step_confirmed is True
                           or first_piano.skipped_upload is True
 
-    pdf_step_done: first_piano
-                   and (first_piano.report_sent is True
-                        or first_piano.skip_pdf_sent is True)
-
     image_identify_path: extracted_from_image_ever and not photos_attached
     attach_photos_path: not extracted_from_image_ever or photos_attached
     can_estimate_value: first_piano
@@ -79,7 +75,7 @@ context:
           or metadata.extracted_from_image_ever is True)
 
     finish_ready: is_confirmed
-                  and ((image_identify_path and pdf_step_done)
+                  and ((image_identify_path)
                        or (attach_photos_path and photo_step_confirmed))
 
 conversation:
@@ -124,14 +120,6 @@ conversation:
       - suggest_action: "$t('action.serial_help')"
         trigger_event: show_serial_help
 
-  - elif: is_confirmed and image_identify_path and not pdf_step_done
-    say: "$t('offer_pdf')"
-    actions:
-      - suggest_action: "$t('action.receive_pdf')"
-        trigger_event: trigger_pdf_send
-      - suggest_action: "$t('action.skip')"
-        trigger_event: skip_pdf_send
-
   - elif: is_confirmed and attach_photos_path
           and not photo_step_confirmed
           and not extracted_from_image_ever
@@ -144,7 +132,7 @@ conversation:
 
   - elif: finish_ready
     continue: true
-    say: "$t('final_chat_open')"
+    say: "$t('final_chat_open')\n$t('final_email_beautify')"
     actions:
       - trigger_event: open_finish_modal
       - suggest_action: "$t('action.start_diag')"

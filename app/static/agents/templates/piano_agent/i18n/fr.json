@@ -6,7 +6,7 @@
   "confirm_save": "Ces informations suffisent pour enregistrer votre piano.",
   "final_done": "🎉 C’est terminé ! Votre piano a bien été enregistré.",
   "final_chat_open": "🎶 Votre piano est maintenant enregistré.\n\nSi vous le souhaitez, parlez-moi un peu plus de lui :\ncomment vous l’utilisez, son histoire, ou ce que vous ressentez en le jouant.",
-
+  "final_email_beautify" :"✨ Une dernière chose… Nous sommes en train de créer une image magnifiquement améliorée de votre piano. Vous la recevrez très bientôt par email 🎹",
   "ask_model": "Connaissez-vous le modèle ou la référence ?",
   "ask_size": "Connaissez-vous la taille du piano ?",
   "ask_serial":"Si vous avez le numéro de série, je peux estimer l’année et affiner la valeur de votre piano.",
