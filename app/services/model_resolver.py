@@ -51,7 +51,7 @@ async def resolve_model_name(
     result = await search_model_full(normalized, manufacturer_id, email=None)
 
     if result:
-        reporter and reporter.step(f"🎹 Model {model_name} identified")
+        reporter and reporter.step(f"🎹 Model {model_name} identified") # type: ignore
         top = result[0]
         if "kind" in top:
             top["kind"] = CATEGORY_MAP.get(top["kind"], top["kind"])
@@ -140,7 +140,7 @@ async def resolve_model_name(
         top = refreshed[0]
         if "kind" in top:
             top["kind"] = CATEGORY_MAP.get(top["kind"], top["kind"])
-        reporter and reporter.step(f"🎹 Model {model_name} identified")
+        reporter and reporter.step(f"🎹 Model {model_name} identified") # type: ignore
         return {
             "status": "found",
             "source": "database",

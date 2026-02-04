@@ -159,6 +159,8 @@ async def identify_photos_options(request: Request):
     # ⚠️ surtout ne rien mettre ici
     # le middleware CORS ajoutera les headers
     return {}
+
+
 @router.post("/photos/identify", response_model=AgentResponse)
 async def identify_from_photos(
     manufacturer_id: Optional[int] = Query(0),
