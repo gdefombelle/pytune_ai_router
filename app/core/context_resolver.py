@@ -28,7 +28,7 @@ async def resolve_user_context(user: UserOut, extra: Optional[dict] = None) -> d
         }
 
         # 2. Ajout du contexte enrichi de la base
-        user_context_obj: UserContext = await get_user_context(user.id)
+        user_context_obj: UserContext = await get_user_context(user.id) # type: ignore
         base_ctx = user_context_obj.model_dump()
         full_context.update(base_ctx)
 
