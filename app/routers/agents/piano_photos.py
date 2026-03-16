@@ -182,7 +182,7 @@ async def identify_from_photos(
             raw = await file.read()
             compressed, safe_metadata = compress_image_and_extract_metadata(raw)
 
-            fname = f"identify_{uuid4().hex}_{file.filename.replace(' ', '_')}"
+            fname = f"identify_{uuid4().hex}_{file.filename.replace(' ', '_')}" # type: ignore
             minio_client.client.put_object(
                 PIANO_SESSION_IMAGES_BUCKET, fname, compressed,
                 length=compressed.getbuffer().nbytes,
