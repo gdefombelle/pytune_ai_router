@@ -126,7 +126,7 @@ conversation:
     say: "$t('offer_photos')"
     actions:
       - suggest_action: "$t('action.upload_photos')"
-        trigger_event: trigger_upload
+        trigger_event: add_photos
       - suggest_action: "$t('action.skip')"
         trigger_event: skip_upload
 
